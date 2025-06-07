@@ -275,6 +275,7 @@
             <option value="cyan">青色</option>
             <option value="red">紅色</option>
         </select>
+        <button onclick="enableColorMode()">🎨 改色模式</button>
         <button onclick="addItem()">新增項目</button>
         <button onclick="exportLayout()">匯出座位表</button>
         <button onclick="clearAll()" style="background: #c0392b;">⚠️ 清空所有</button>
@@ -283,7 +284,7 @@
         <button onclick="resetZoom()" class="debug">重置縮放</button>
         <div class="status" id="connectionStatus">未連接</div>
         <div class="info">
-            即時協作版 | 手機:長按拖拽/短按改色 | 縮放: <span id="zoomLevel">100%</span> | 目前項目: <span id="peopleCount">0</span>/100
+            即時協作版 | 按住拖拽 | 縮放: <span id="zoomLevel">100%</span> | 目前項目: <span id="peopleCount">0</span>/100 | <span id="modeInfo">拖拽模式</span>
         </div>
     </div>
     
@@ -347,7 +348,8 @@
         let dragOffset = {x: 0, y: 0};
         let zoomLevel = 1.0;
         let isUpdatingFromFirebase = false;
-        let hasLoadedFromFirebase = false; // ✅ 新增：追蹤是否已從 Firebase 載入
+        let hasLoadedFromFirebase = false; 
+        let colorMode = false; // 🎨 改色模式開關
 
         // Firebase 相關函數
         function updateConnectionStatus(status, connected) {
@@ -484,14 +486,51 @@
                 };
                 div.appendChild(deleteBtn);
                 
-                div.addEventListener('contextmenu', (e) => {
-                    e.preventDefault();
-                    changeColor(index);
+                // 移除右鍵改色，改用按鈕模式
+                // div.addEventListener('contextmenu', (e) => {
+                //     e.preventDefault();
+                //     changeColor(index);
+                // });
+                
+                // 支援觸控和滑鼠 - 徹底修復
+                div.addEventListener('mousedown', (e) => {
+                    if (colorMode) {
+                        // 改色模式下完全阻止 mousedown
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return false;
+                    }
+                    console.log('mousedown 事件觸發 - 拖拽模式');
+                    startDrag(e);
                 });
                 
-                // 支援觸控和滑鼠
-                div.addEventListener('mousedown', startDrag);
-                div.addEventListener('touchstart', startDrag, { passive: false });
+                div.addEventListener('click', (e) => {
+                    if (!colorMode) {
+                        // 拖拽模式下忽略 click
+                        return;
+                    }
+                    
+                    console.log('click 事件觸發 - 改色模式');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // 直接在這裡處理改色，不調用 startDrag
+                    const personDiv = e.target.closest('.person');
+                    if (personDiv) {
+                        const personIndex = parseInt(personDiv.dataset.index);
+                        const selectedColor = document.getElementById('itemColor').value;
+                        
+                        console.log('改色 - 索引:', personIndex, '顏色:', selectedColor);
+                        
+                        people[personIndex].color = selectedColor;
+                        renderPeople();
+                    }
+                });
+                
+                div.addEventListener('touchstart', (e) => {
+                    console.log('touchstart 事件觸發');
+                    startDrag(e);
+                }, { passive: false });
                 container.appendChild(div);
             });
             
@@ -555,6 +594,43 @@
                 });
                 nameInput.value = '';
                 renderPeople();
+            }
+        }
+
+        // 🎨 改色模式功能 - 修復版本
+        window.enableColorMode = function() {
+            console.log('enableColorMode 被調用，當前 colorMode:', colorMode);
+            colorMode = !colorMode;
+            
+            // 直接通過 onclick 找到按鈕
+            const allButtons = document.getElementsByTagName('button');
+            let colorButton = null;
+            
+            for (let btn of allButtons) {
+                if (btn.onclick && btn.onclick.toString().includes('enableColorMode')) {
+                    colorButton = btn;
+                    break;
+                }
+            }
+            
+            const modeInfo = document.getElementById('modeInfo');
+            
+            if (colorMode) {
+                if (colorButton) {
+                    colorButton.textContent = '✋ 拖拽模式';
+                    colorButton.style.background = '#e67e22';
+                }
+                if (modeInfo) modeInfo.textContent = '🎨 改色模式 - 點擊項目改色';
+                document.body.style.cursor = 'crosshair';
+                console.log('切換到改色模式');
+            } else {
+                if (colorButton) {
+                    colorButton.textContent = '🎨 改色模式';
+                    colorButton.style.background = '#27ae60';
+                }
+                if (modeInfo) modeInfo.textContent = '拖拽模式';
+                document.body.style.cursor = 'default';
+                console.log('切換到拖拽模式');
             }
         }
 
@@ -661,33 +737,14 @@
             e.stopPropagation();
         }
 
-        // 事件監聽器 - 優化性能
+        // 簡化事件監聽器
         function setupEventListeners() {
-            let lastRenderTime = 0;
-            const RENDER_THROTTLE = 16; // 限制60fps
-            
             const handleMove = (e) => {
                 const container = document.getElementById('mapContainer');
                 const rect = container.getBoundingClientRect();
                 
-                // 支援觸控和滑鼠
                 const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-                
-                // 觸控時檢查移動距離，判斷是否取消長按
-                if (e.touches && touchStartPos && !isLongPress) {
-                    const moveDistance = Math.sqrt(
-                        Math.pow(clientX - touchStartPos.x, 2) + 
-                        Math.pow(clientY - touchStartPos.y, 2)
-                    );
-                    if (moveDistance > 8) { // 減少敏感度
-                        touchStartPos = null;
-                        if (longPressTimer) {
-                            clearTimeout(longPressTimer);
-                            longPressTimer = null;
-                        }
-                    }
-                }
                 
                 const pixelX = clientX - rect.left;
                 const pixelY = clientY - rect.top;
@@ -697,60 +754,32 @@
                     `座標: ${Math.round(pixelX)}, ${Math.round(pixelY)} | 格線: (${grid.gridX}, ${grid.gridY})`;
                 
                 if (isDragging && dragPerson !== null) {
-                    const now = Date.now();
-                    // 限制渲染頻率，提升性能
-                    if (now - lastRenderTime > RENDER_THROTTLE) {
-                        const newPixelX = clientX - rect.left - dragOffset.x;
-                        const newPixelY = clientY - rect.top - dragOffset.y;
-                        const newGrid = pixelToGrid(newPixelX, newPixelY);
-                        
-                        people[dragPerson].gridX = newGrid.gridX;
-                        people[dragPerson].gridY = newGrid.gridY;
-                        
-                        renderPeople();
-                        lastRenderTime = now;
-                    }
+                    const newPixelX = clientX - rect.left - dragOffset.x;
+                    const newPixelY = clientY - rect.top - dragOffset.y;
+                    const newGrid = pixelToGrid(newPixelX, newPixelY);
+                    
+                    people[dragPerson].gridX = newGrid.gridX;
+                    people[dragPerson].gridY = newGrid.gridY;
+                    
+                    renderPeople();
                 }
             };
             
-            const handleEnd = (e) => {
-                // 清除計時器
-                if (longPressTimer) {
-                    clearTimeout(longPressTimer);
-                    longPressTimer = null;
-                }
-                
-                // 重置觸控相關變數
-                touchStartPos = null;
-                
+            const handleEnd = () => {
                 if (isDragging) {
-                    isLongPress = false;
                     setTimeout(() => {
                         isDragging = false;
                         dragPerson = null;
                         document.querySelectorAll('.person').forEach(p => p.classList.remove('dragging'));
                     }, 10);
-                } else if ((e.touches === undefined || e.touches.length === 0) && !isLongPress) {
-                    // 短按（點擊）處理 - 改變顏色
-                    const clickTime = Date.now() - touchStartTime;
-                    if (clickTime < 150 && e.target.closest('.person')) { // 縮短判斷時間
-                        const personIndex = parseInt(e.target.closest('.person').dataset.index);
-                        if (personIndex !== undefined) {
-                            changeColor(personIndex);
-                        }
-                    }
                 }
-                isLongPress = false;
             };
             
-            // 滑鼠事件
+            // 事件監聽
             document.addEventListener('mousemove', handleMove);
             document.addEventListener('mouseup', handleEnd);
-            
-            // 觸控事件 - 優化設定
             document.addEventListener('touchmove', handleMove, { passive: false });
-            document.addEventListener('touchend', handleEnd, { passive: false });
-            document.addEventListener('touchcancel', handleEnd, { passive: false });
+            document.addEventListener('touchend', handleEnd);
         }
 
         // 鍵盤快捷鍵
