@@ -265,7 +265,7 @@
     <div class="map-container" id="mapContainer">
         <div class="grid-overlay" id="gridOverlay"></div>
         <div class="coords" id="coords">座標: 0, 0</div>
-        <div class="grid-info">⚠️ 需要設定 Firebase 才能使用即時協作功能</div>
+        <div class="grid-info">⚠️ 載入中...</div>
     </div>
 
     <!-- Firebase SDK -->
@@ -306,7 +306,11 @@
         const GRID_ORIGIN_X = MAP_WIDTH / 2;
         const GRID_ORIGIN_Y = MAP_HEIGHT / 2;
         
-        let people = [
+        // ✅ 修正：初始為空陣列，等 Firebase 載入
+        let people = [];
+        
+        // 預設資料，只在 Firebase 沒有資料時使用
+        const defaultPeople = [
             {name: '熊窩', gridX: 0, gridY: 0, type: 'center', color: 'red'},
             {name: '急先鋒', gridX: 0, gridY: -3, type: 'person', color: 'green'},
             {name: 'Patato Q', gridX: 3, gridY: -1, type: 'person', color: 'blue'},
@@ -318,12 +322,20 @@
         let dragOffset = {x: 0, y: 0};
         let zoomLevel = 1.0;
         let isUpdatingFromFirebase = false;
+        let hasLoadedFromFirebase = false; // ✅ 新增：追蹤是否已從 Firebase 載入
 
         // Firebase 相關函數
         function updateConnectionStatus(status, connected) {
             const statusEl = document.getElementById('connectionStatus');
             statusEl.textContent = status;
             statusEl.className = connected ? 'status connected' : 'status';
+            
+            // 更新資訊顯示
+            if (connected) {
+                document.querySelector('.grid-info').textContent = '✅ 即時協作已啟用';
+            } else {
+                document.querySelector('.grid-info').textContent = '⚠️ 需要設定 Firebase 才能使用即時協作功能';
+            }
         }
 
         function saveToFirebase() {
@@ -346,12 +358,26 @@
             const layoutRef = ref(database, 'bearDenLayout');
             onValue(layoutRef, (snapshot) => {
                 const data = snapshot.val();
-                if (data && data.people) {
-                    isUpdatingFromFirebase = true;
+                
+                isUpdatingFromFirebase = true;
+                
+                if (data && data.people && data.people.length > 0) {
+                    // ✅ Firebase 有資料，使用 Firebase 的資料
                     people = data.people;
-                    renderPeople();
-                    isUpdatingFromFirebase = false;
+                    hasLoadedFromFirebase = true;
+                } else if (!hasLoadedFromFirebase) {
+                    // ✅ Firebase 沒有資料且是第一次載入，使用預設資料並儲存到 Firebase
+                    people = [...defaultPeople];
+                    hasLoadedFromFirebase = true;
+                    // 將預設資料儲存到 Firebase
+                    setTimeout(() => {
+                        isUpdatingFromFirebase = false;
+                        saveToFirebase();
+                    }, 100);
                 }
+                
+                renderPeople();
+                isUpdatingFromFirebase = false;
             });
         }
 
@@ -632,7 +658,6 @@
 
         // 初始化
         function initialize() {
-            renderPeople();
             applyZoom();
             
             const centerX = MAP_WIDTH / 2 - window.innerWidth / 2;
@@ -640,7 +665,7 @@
             
             window.scrollTo(centerX, centerY);
             
-            // 設定 Firebase 監聽器
+            // ✅ 設定 Firebase 監聽器（會自動載入資料）
             setupFirebaseListener();
         }
 
