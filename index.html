@@ -661,8 +661,11 @@
             e.stopPropagation();
         }
 
-        // 事件監聽器 - 優化觸控體驗
+        // 事件監聽器 - 優化性能
         function setupEventListeners() {
+            let lastRenderTime = 0;
+            const RENDER_THROTTLE = 16; // 限制60fps
+            
             const handleMove = (e) => {
                 const container = document.getElementById('mapContainer');
                 const rect = container.getBoundingClientRect();
@@ -677,9 +680,12 @@
                         Math.pow(clientX - touchStartPos.x, 2) + 
                         Math.pow(clientY - touchStartPos.y, 2)
                     );
-                    if (moveDistance > 10) {
-                        // 移動超過10px，取消長按檢測
+                    if (moveDistance > 8) { // 減少敏感度
                         touchStartPos = null;
+                        if (longPressTimer) {
+                            clearTimeout(longPressTimer);
+                            longPressTimer = null;
+                        }
                     }
                 }
                 
@@ -691,38 +697,50 @@
                     `座標: ${Math.round(pixelX)}, ${Math.round(pixelY)} | 格線: (${grid.gridX}, ${grid.gridY})`;
                 
                 if (isDragging && dragPerson !== null) {
-                    const newPixelX = clientX - rect.left - dragOffset.x;
-                    const newPixelY = clientY - rect.top - dragOffset.y;
-                    const newGrid = pixelToGrid(newPixelX, newPixelY);
-                    
-                    people[dragPerson].gridX = newGrid.gridX;
-                    people[dragPerson].gridY = newGrid.gridY;
-                    
-                    renderPeople();
+                    const now = Date.now();
+                    // 限制渲染頻率，提升性能
+                    if (now - lastRenderTime > RENDER_THROTTLE) {
+                        const newPixelX = clientX - rect.left - dragOffset.x;
+                        const newPixelY = clientY - rect.top - dragOffset.y;
+                        const newGrid = pixelToGrid(newPixelX, newPixelY);
+                        
+                        people[dragPerson].gridX = newGrid.gridX;
+                        people[dragPerson].gridY = newGrid.gridY;
+                        
+                        renderPeople();
+                        lastRenderTime = now;
+                    }
                 }
             };
             
             const handleEnd = (e) => {
+                // 清除計時器
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+                
                 // 重置觸控相關變數
                 touchStartPos = null;
-                isLongPress = false;
                 
                 if (isDragging) {
+                    isLongPress = false;
                     setTimeout(() => {
                         isDragging = false;
                         dragPerson = null;
                         document.querySelectorAll('.person').forEach(p => p.classList.remove('dragging'));
                     }, 10);
-                } else if (e.touches === undefined || e.touches.length === 0) {
-                    // 短按（點擊）處理 - 可以用來改變顏色
+                } else if ((e.touches === undefined || e.touches.length === 0) && !isLongPress) {
+                    // 短按（點擊）處理 - 改變顏色
                     const clickTime = Date.now() - touchStartTime;
-                    if (clickTime < 300 && e.target.closest('.person')) {
+                    if (clickTime < 150 && e.target.closest('.person')) { // 縮短判斷時間
                         const personIndex = parseInt(e.target.closest('.person').dataset.index);
                         if (personIndex !== undefined) {
                             changeColor(personIndex);
                         }
                     }
                 }
+                isLongPress = false;
             };
             
             // 滑鼠事件
