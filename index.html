@@ -127,7 +127,7 @@
         
         .person {
             position: absolute;
-            color: #ffffff;  /* ✅ 改為白色 */
+            color: #ffffff;
             font-size: 10px;
             white-space: nowrap;
             text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
@@ -164,49 +164,49 @@
         .person.green {
             background: rgba(46, 204, 113, 0.2);
             border-color: #2ecc71;
-            color: #ffffff;  /* ✅ 白色文字 */
+            color: #ffffff;
         }
         
         .person.blue {
             background: rgba(52, 152, 219, 0.2);
             border-color: #3498db;
-            color: #ffffff;  /* ✅ 白色文字 */
+            color: #ffffff;
         }
         
         .person.purple {
             background: rgba(155, 89, 182, 0.2);
             border-color: #9b59b6;
-            color: #ffffff;  /* ✅ 白色文字 */
+            color: #ffffff;
         }
         
         .person.orange {
             background: rgba(230, 126, 34, 0.2);
             border-color: #e67e22;
-            color: #ffffff;  /* ✅ 白色文字 */
+            color: #ffffff;
         }
         
         .person.pink {
             background: rgba(233, 30, 99, 0.2);
             border-color: #e91e63;
-            color: #ffffff;  /* ✅ 白色文字 */
+            color: #ffffff;
         }
         
         .person.yellow {
             background: rgba(241, 196, 15, 0.2);
             border-color: #f1c40f;
-            color: #000000;  /* ✅ 黃色背景用黑色文字，比較清楚 */
+            color: #000000;
         }
         
         .person.cyan {
             background: rgba(26, 188, 156, 0.2);
             border-color: #1abc9c;
-            color: #ffffff;  /* ✅ 白色文字 */
+            color: #ffffff;
         }
         
         .person.red {
             background: rgba(231, 76, 60, 0.2);
             border-color: #e74c3c;
-            color: #ffffff;  /* ✅ 白色文字 */
+            color: #ffffff;
         }
         
         .coords {
@@ -602,23 +602,32 @@
         }
 
         window.clearAll = function() {
-            // 🛡️ 三重確認保護機制
+            // 🔐 密碼保護 + 三重確認保護機制
+            const CLEAR_PASSWORD = "SKY1147dean"; // 你可以修改這個密碼
             const itemCount = people.length;
             
+            // 第一步：密碼驗證
+            const passwordInput = prompt('🔐 請輸入管理員密碼才能清空所有項目：');
+            if (passwordInput !== CLEAR_PASSWORD) {
+                alert('❌ 密碼錯誤，操作已取消');
+                return;
+            }
+            
             if (itemCount <= 4) {
-                if (confirm('確定要清空所有項目嗎？（熊窩會保留）')) {
+                if (confirm('✅ 密碼正確！\n\n確定要清空所有項目嗎？（熊窩會保留）')) {
                     people = people.filter(p => p.type === 'center' && p.name === '熊窩');
                     renderPeople();
+                    alert('✅ 所有項目已清空（除了熊窩）');
                 }
             } else {
                 // 項目很多時的特殊保護
-                const firstConfirm = confirm(`⚠️ 警告！你即將刪除 ${itemCount} 個項目！\n\n這個操作無法復原，確定要繼續嗎？`);
+                const firstConfirm = confirm(`✅ 密碼正確！\n\n⚠️ 警告！你即將刪除 ${itemCount} 個項目！\n\n這個操作無法復原，確定要繼續嗎？`);
                 if (!firstConfirm) return;
                 
-                const secondConfirm = confirm('🚨 最後確認！\n\n真的要清空所有座位安排嗎？（僅保留熊窩）\n\n輸入項目數量來確認：' + itemCount);
+                const secondConfirm = confirm('🚨 最後確認！\n\n真的要清空所有座位安排嗎？（僅保留熊窩）');
                 if (!secondConfirm) return;
                 
-                const userInput = prompt(`請輸入當前項目數量 "${itemCount}" 來確認清空操作：`);
+                const userInput = prompt(`請輸入當前項目數量 "${itemCount}" 來最終確認清空操作：`);
                 if (userInput === itemCount.toString()) {
                     people = people.filter(p => p.type === 'center' && p.name === '熊窩');
                     renderPeople();
@@ -627,22 +636,6 @@
                     alert('❌ 數量不正確，操作已取消');
                 }
             }
-        }
-
-        // 拖拽功能
-        function startDrag(e) {
-            if (e.target.classList.contains('delete-btn')) return;
-            
-            isDragging = true;
-            dragPerson = parseInt(e.target.closest('.person').dataset.index);
-            
-            const rect = e.target.closest('.person').getBoundingClientRect();
-            dragOffset.x = e.clientX - (rect.left + rect.width/2);
-            dragOffset.y = e.clientY - (rect.top + rect.height/2);
-            
-            e.target.closest('.person').classList.add('dragging');
-            e.preventDefault();
-            e.stopPropagation();
         }
 
         // 觸控支援
