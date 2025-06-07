@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>45度格線座位安排 - 熊窩地圖 (縮放版)</title>
+    <title>熊窩地圖 - 即時協作版</title>
     <style>
         body {
             margin: 0;
@@ -32,7 +32,7 @@
             border-bottom: 1px solid rgba(127, 140, 141, 0.3);
         }
         
-        .controls input {
+        .controls input, .controls select {
             padding: 5px;
             background: #2c3e50;
             border: 1px solid #7f8c8d;
@@ -61,6 +61,17 @@
             background: #e67e22;
         }
         
+        .status {
+            background: #e74c3c;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+        
+        .status.connected {
+            background: #27ae60;
+        }
+        
         .info {
             margin-left: auto;
             font-size: 12px;
@@ -87,25 +98,6 @@
             height: 100%;
             pointer-events: none;
             z-index: 1;
-        }
-        
-        .grid-point {
-            position: absolute;
-            width: 6px;
-            height: 6px;
-            background: #e74c3c;
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 2;
-            opacity: 0.7;
-            border: 1px solid #ffffff;
-        }
-        
-        .grid-point.major {
-            width: 8px;
-            height: 8px;
-            background: #f39c12;
-            opacity: 0.9;
         }
         
         .person {
@@ -192,23 +184,6 @@
             color: #e74c3c;
         }
         
-        .coordinate-axis {
-            position: fixed;
-            bottom: 60px;
-            right: 10px;
-            color: #95a5a6;
-            pointer-events: none;
-            z-index: 5;
-        }
-        
-        .axis-line {
-            position: absolute;
-            background: #95a5a6;
-        }
-        
-        .h-line { width: 30px; height: 1px; top: 15px; }
-        .v-line { width: 1px; height: 30px; left: 15px; }
-        
         .coords {
             position: fixed;
             bottom: 5px;
@@ -266,7 +241,7 @@
             <option value="large">大建築 (4×4=16格)</option>
         </select>
         <select id="itemColor">
-            <option value="green">綠色 (預設)</option>
+            <option value="green">綠色</option>
             <option value="blue">藍色</option>
             <option value="purple">紫色</option>
             <option value="orange">橘色</option>
@@ -276,32 +251,55 @@
             <option value="red">紅色</option>
         </select>
         <button onclick="addItem()">新增項目</button>
-        <button onclick="saveLayout()">儲存佈局</button>
-        <button onclick="loadLayout()">載入佈局</button>
         <button onclick="exportLayout()">匯出座位表</button>
         <button onclick="clearAll()">清空所有</button>
-        <button onclick="toggleDebugMode()" class="debug" id="debugBtn">顯示格點</button>
         <button onclick="zoomIn()" class="debug">放大 (+)</button>
         <button onclick="zoomOut()" class="debug">縮小 (-)</button>
         <button onclick="resetZoom()" class="debug">重置縮放</button>
+        <div class="status" id="connectionStatus">未連接</div>
         <div class="info">
-            無邊際空間 + 縮放功能 | 右鍵改變顏色 | 縮放: <span id="zoomLevel">100%</span> | 目前項目: <span id="peopleCount">0</span>/100
+            即時協作版 | 右鍵改變顏色 | 縮放: <span id="zoomLevel">100%</span> | 目前項目: <span id="peopleCount">0</span>/100
         </div>
     </div>
     
     <div class="map-container" id="mapContainer">
         <div class="grid-overlay" id="gridOverlay"></div>
-        
-        <div class="coordinate-axis">
-            <div class="axis-line h-line"></div>
-            <div class="axis-line v-line"></div>
-        </div>
-        
         <div class="coords" id="coords">座標: 0, 0</div>
-        <div class="grid-info">√2補償方案 | 格點間距:40px | 縮放: +/- 鍵 或 Ctrl+滾輪</div>
+        <div class="grid-info">⚠️ 需要設定 Firebase 才能使用即時協作功能</div>
     </div>
 
-    <script>
+    <!-- Firebase SDK -->
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getDatabase, ref, set, onValue, push, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+
+        // 🔥 你的 Firebase 配置 (正確的 Database URL)
+        const firebaseConfig = {
+            apiKey: "AIzaSyBHG_bYTMT9s9XkeU5s1LIanFiZDN-081w",
+            authDomain: "sky-bb549.firebaseapp.com",
+            databaseURL: "https://sky-bb549-default-rtdb.firebaseio.com/", // ✅ 正確的 URL
+            projectId: "sky-bb549",
+            storageBucket: "sky-bb549.firebasestorage.app",
+            messagingSenderId: "105237288983",
+            appId: "1:105237288983:web:5dcec35e9306d043a96452",
+            measurementId: "G-9FZNC307GC"
+        };
+
+        // Initialize Firebase
+        let app, database, isFirebaseEnabled = false;
+        
+        try {
+            app = initializeApp(firebaseConfig);
+            database = getDatabase(app);
+            isFirebaseEnabled = true;
+            updateConnectionStatus('已連接', true);
+        } catch (error) {
+            console.warn('Firebase 未正確設定:', error);
+            updateConnectionStatus('需要設定 Firebase', false);
+        }
+
+        // 全域變數
         const GRID_SIZE = 40;
         const MAP_WIDTH = 10000;
         const MAP_HEIGHT = 8000;
@@ -309,27 +307,55 @@
         const GRID_ORIGIN_Y = MAP_HEIGHT / 2;
         
         let people = [
-            {name: '熊窩', gridX: 0, gridY: 0, type: 'center'},
-            {name: '急先鋒', gridX: 0, gridY: -5, type: 'person'},
-            {name: 'Patato Q', gridX: 4, gridY: -2, type: 'person'},
-            {name: 'Potato Sue', gridX: 5, gridY: 0, type: 'person'},
-            {name: '阿基', gridX: 4, gridY: 4, type: 'person'},
-            {name: 'Joeeeeeey', gridX: 0, gridY: 5, type: 'person'},
-            {name: 'Joey2', gridX: -4, gridY: 4, type: 'person'},
-            {name: '蝙蝠俠', gridX: -5, gridY: 0, type: 'person'},
-            {name: 'Potato Justin', gridX: -4, gridY: -2, type: 'person'},
-            {name: '黃禾', gridX: 0, gridY: -2, type: 'person'},
-            {name: 'Potato Fish ovo', gridX: 3, gridY: 1, type: 'person'},
-            {name: 'Potato Joey', gridX: -3, gridY: 1, type: 'person'},
-            {name: 'Joey3', gridX: 0, gridY: 3, type: 'person'}
+            {name: '熊窩', gridX: 0, gridY: 0, type: 'center', color: 'red'},
+            {name: '急先鋒', gridX: 0, gridY: -3, type: 'person', color: 'green'},
+            {name: 'Patato Q', gridX: 3, gridY: -1, type: 'person', color: 'blue'},
+            {name: 'Potato Sue', gridX: 3, gridY: 1, type: 'person', color: 'purple'}
         ];
         
         let isDragging = false;
         let dragPerson = null;
         let dragOffset = {x: 0, y: 0};
-        let debugMode = false;
         let zoomLevel = 1.0;
-        
+        let isUpdatingFromFirebase = false;
+
+        // Firebase 相關函數
+        function updateConnectionStatus(status, connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            statusEl.textContent = status;
+            statusEl.className = connected ? 'status connected' : 'status';
+        }
+
+        function saveToFirebase() {
+            if (!isFirebaseEnabled || isUpdatingFromFirebase) return;
+            
+            try {
+                const layoutRef = ref(database, 'bearDenLayout');
+                set(layoutRef, {
+                    people: people,
+                    lastUpdated: Date.now()
+                });
+            } catch (error) {
+                console.warn('Firebase 儲存失敗:', error);
+            }
+        }
+
+        function setupFirebaseListener() {
+            if (!isFirebaseEnabled) return;
+            
+            const layoutRef = ref(database, 'bearDenLayout');
+            onValue(layoutRef, (snapshot) => {
+                const data = snapshot.val();
+                if (data && data.people) {
+                    isUpdatingFromFirebase = true;
+                    people = data.people;
+                    renderPeople();
+                    isUpdatingFromFirebase = false;
+                }
+            });
+        }
+
+        // 座標轉換函數
         function gridToPixel(gridX, gridY) {
             const gridStep = 40;
             const rotatedX = (gridX - gridY) * gridStep / 2;
@@ -352,6 +378,7 @@
             return {gridX, gridY};
         }
         
+        // 渲染函數
         function renderPeople() {
             const container = document.getElementById('mapContainer');
             
@@ -362,7 +389,6 @@
             
             people.forEach((item, index) => {
                 const div = document.createElement('div');
-                // 添加顏色類別
                 div.className = `person ${item.color || 'green'}`;
                 div.dataset.index = index;
                 
@@ -407,7 +433,6 @@
                 };
                 div.appendChild(deleteBtn);
                 
-                // 右鍵點擊改變顏色
                 div.addEventListener('contextmenu', (e) => {
                     e.preventDefault();
                     changeColor(index);
@@ -417,50 +442,115 @@
                 container.appendChild(div);
             });
             
-            saveToLocalStorage();
+            // 如果不是從 Firebase 更新，則儲存到 Firebase
+            if (!isUpdatingFromFirebase) {
+                saveToFirebase();
+            }
         }
-        
 
-        
-        // 縮放功能 - 正確以視窗中心為縮放中心
+        // 縮放功能
         function applyZoom() {
             const container = document.getElementById('mapContainer');
-            
-            // 計算視窗中心點相對於容器的位置
             const containerRect = container.getBoundingClientRect();
             const viewportCenterX = window.innerWidth / 2;
             const viewportCenterY = window.innerHeight / 2;
             
-            // 轉換為相對於容器的座標
             const containerCenterX = (viewportCenterX - containerRect.left) / zoomLevel;
             const containerCenterY = (viewportCenterY - containerRect.top) / zoomLevel;
             
-            // 設置縮放中心點為當前視窗中心
             container.style.transformOrigin = `${containerCenterX}px ${containerCenterY}px`;
             container.style.transform = `scale(${zoomLevel})`;
             
             document.getElementById('zoomLevel').textContent = Math.round(zoomLevel * 100) + '%';
         }
         
-        function zoomIn() {
+        window.zoomIn = function() {
             if (zoomLevel < 3.0) {
                 zoomLevel *= 1.2;
                 applyZoom();
             }
         }
         
-        function zoomOut() {
+        window.zoomOut = function() {
             if (zoomLevel > 0.1) {
                 zoomLevel /= 1.2;
                 applyZoom();
             }
         }
         
-        function resetZoom() {
+        window.resetZoom = function() {
             zoomLevel = 1.0;
             applyZoom();
         }
-        
+
+        // 功能函數
+        window.addItem = function() {
+            const nameInput = document.getElementById('newItemName');
+            const typeSelect = document.getElementById('itemType');
+            const colorSelect = document.getElementById('itemColor');
+            const name = nameInput.value.trim();
+            const type = typeSelect.value;
+            const color = colorSelect.value;
+            
+            if (name) {
+                people.push({
+                    name: name,
+                    gridX: 6,
+                    gridY: 6,
+                    type: type,
+                    color: color
+                });
+                nameInput.value = '';
+                renderPeople();
+            }
+        }
+
+        function deleteItem(index) {
+            if (people[index].type === 'center' && people[index].name === '熊窩') {
+                alert('中心建築（熊窩）不能刪除！');
+                return;
+            }
+            people.splice(index, 1);
+            renderPeople();
+        }
+
+        function changeColor(index) {
+            const colors = ['green', 'blue', 'purple', 'orange', 'pink', 'yellow', 'cyan', 'red'];
+            const currentColor = people[index].color || 'green';
+            const currentIndex = colors.indexOf(currentColor);
+            const nextIndex = (currentIndex + 1) % colors.length;
+            
+            people[index].color = colors[nextIndex];
+            renderPeople();
+        }
+
+        window.exportLayout = function() {
+            const layout = people.map(p => {
+                const typeNames = {
+                    'small': '小建築(1×1=1格)',
+                    'person': '成員(2×2=4格)', 
+                    'center': '中心建築(3×3=9格)',
+                    'large': '大建築(4×4=16格)'
+                };
+                return `${p.name}: ${typeNames[p.type]} 格線(${p.gridX}, ${p.gridY}) 顏色:${p.color}`;
+            }).join('\n');
+            const blob = new Blob([layout], {type: 'text/plain'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '座位安排_格線座標.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        window.clearAll = function() {
+            if (confirm('確定要清空所有項目嗎？（熊窩會保留）')) {
+                people = people.filter(p => p.type === 'center' && p.name === '熊窩');
+                renderPeople();
+            }
+        }
+
+        // 拖拽功能
         function startDrag(e) {
             if (e.target.classList.contains('delete-btn')) return;
             
@@ -475,130 +565,8 @@
             e.preventDefault();
             e.stopPropagation();
         }
-        
-        function addItem() {
-            const nameInput = document.getElementById('newItemName');
-            const typeSelect = document.getElementById('itemType');
-            const name = nameInput.value.trim();
-            const type = typeSelect.value;
-            
-            if (name) {
-                people.push({
-                    name: name,
-                    gridX: 6,
-                    gridY: 6,
-                    type: type
-                });
-                nameInput.value = '';
-                renderPeople();
-            }
-        }
-        
-        function deleteItem(index) {
-            if (people[index].type === 'center' && people[index].name === '熊窩') {
-                alert('中心建築（熊窩）不能刪除！');
-                return;
-            }
-            people.splice(index, 1);
-            renderPeople();
-        }
-        
-        function exportLayout() {
-            const layout = people.map(p => {
-                const typeNames = {
-                    'small': '小建築(1×1=1格)',
-                    'person': '成員(2×2=4格)', 
-                    'center': '中心建築(3×3=9格)',
-                    'large': '大建築(4×4=16格)'
-                };
-                return `${p.name}: ${typeNames[p.type]} 格線(${p.gridX}, ${p.gridY})`;
-            }).join('\n');
-            const blob = new Blob([layout], {type: 'text/plain'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = '座位安排_格線座標.txt';
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-        
-        function saveToLocalStorage() {
-            try {
-                const data = JSON.stringify(people);
-                localStorage.setItem('bearDenLayout', data);
-            } catch (e) {
-                console.warn('無法自動儲存:', e);
-            }
-        }
-        
-        function loadFromLocalStorage() {
-            try {
-                const data = localStorage.getItem('bearDenLayout');
-                if (data) {
-                    const loadedPeople = JSON.parse(data);
-                    if (Array.isArray(loadedPeople) && loadedPeople.length > 0) {
-                        people = loadedPeople;
-                        return true;
-                    }
-                }
-            } catch (e) {
-                console.warn('載入儲存資料失敗:', e);
-            }
-            return false;
-        }
-        
-        function saveLayout() {
-            try {
-                const data = JSON.stringify(people, null, 2);
-                const blob = new Blob([data], {type: 'application/json'});
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = '熊窩座位佈局.json';
-                a.click();
-                URL.revokeObjectURL(url);
-                alert('佈局已儲存！');
-            } catch (e) {
-                alert('儲存失敗: ' + e.message);
-            }
-        }
-        
-        function loadLayout() {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.json';
-            input.onchange = function(e) {
-                const file = e.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        try {
-                            const loadedPeople = JSON.parse(e.target.result);
-                            if (Array.isArray(loadedPeople)) {
-                                people = loadedPeople;
-                                renderPeople();
-                                alert('佈局載入成功！');
-                            } else {
-                                alert('檔案格式錯誤！');
-                            }
-                        } catch (err) {
-                            alert('載入失敗: ' + err.message);
-                        }
-                    };
-                    reader.readAsText(file);
-                }
-            };
-            input.click();
-        }
-        
-        function clearAll() {
-            if (confirm('確定要清空所有項目嗎？（熊窩會保留）')) {
-                people = people.filter(p => p.type === 'center' && p.name === '熊窩');
-                renderPeople();
-            }
-        }
-        
-        // 滑鼠事件
+
+        // 事件監聽器
         document.addEventListener('mousemove', (e) => {
             const container = document.getElementById('mapContainer');
             const rect = container.getBoundingClientRect();
@@ -630,108 +598,52 @@
                 }, 10);
             }
         });
-        
-        document.getElementById('mapContainer').addEventListener('click', (e) => {
-            if (isDragging) return;
-            
-            if ((e.target.id === 'mapContainer' || e.target.id === 'gridOverlay')) {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const pixelX = e.clientX - rect.left;
-                const pixelY = e.clientY - rect.top;
-                const grid = pixelToGrid(pixelX, pixelY);
-                
-                const name = prompt('輸入項目名稱：');
-                if (name && name.trim()) {
-                    const type = prompt('選擇類型：\n1 = 小建築(1×1)\n2 = 成員(2×2)\n3 = 中心建築(3×3)\n4 = 大建築(4×4)\n\n請輸入數字 1-4：');
-                    const typeMap = {
-                        '1': 'small',
-                        '2': 'person', 
-                        '3': 'center',
-                        '4': 'large'
-                    };
-                    
-                    const selectedType = typeMap[type] || 'person';
-                    
-                    people.push({
-                        name: name.trim(),
-                        gridX: grid.gridX,
-                        gridY: grid.gridY,
-                        type: selectedType
-                    });
-                    renderPeople();
-                }
-            }
-        });
-        
+
         // 鍵盤快捷鍵
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && document.getElementById('newItemName') === document.activeElement) {
-                addItem();
+                window.addItem();
             }
             else if (e.key === '=' || e.key === '+') {
                 e.preventDefault();
-                zoomIn();
+                window.zoomIn();
             }
             else if (e.key === '-' || e.key === '_') {
                 e.preventDefault();
-                zoomOut();
+                window.zoomOut();
             }
             else if (e.key === '0' && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
-                resetZoom();
+                window.resetZoom();
             }
         });
-        
+
         // 滑鼠滾輪縮放
         document.getElementById('mapContainer').addEventListener('wheel', (e) => {
             if (e.ctrlKey || e.metaKey) {
                 e.preventDefault();
                 if (e.deltaY < 0) {
-                    zoomIn();
+                    window.zoomIn();
                 } else {
-                    zoomOut();
+                    window.zoomOut();
                 }
             }
         });
-        
-        // 初始化 - 把所有物件移到中心方便測試
+
+        // 初始化
         function initialize() {
-            const loaded = loadFromLocalStorage();
-            
-            // 如果沒有從本地儲存載入，就把預設物件移到中心
-            if (!loaded) {
-                // 重新安排物件位置，集中在中心區域
-                people = [
-                    {name: '熊窩', gridX: 0, gridY: 0, type: 'center'},
-                    {name: '急先鋒', gridX: 0, gridY: -3, type: 'person'},
-                    {name: 'Patato Q', gridX: 3, gridY: -1, type: 'person'},
-                    {name: 'Potato Sue', gridX: 3, gridY: 1, type: 'person'},
-                    {name: '阿基', gridX: 3, gridY: 3, type: 'person'},
-                    {name: 'Joeeeeeey', gridX: 0, gridY: 3, type: 'person'},
-                    {name: 'Joey2', gridX: -3, gridY: 3, type: 'person'},
-                    {name: '蝙蝠俠', gridX: -3, gridY: 1, type: 'person'},
-                    {name: 'Potato Justin', gridX: -3, gridY: -1, type: 'person'},
-                    {name: '黃禾', gridX: 0, gridY: -1, type: 'person'},
-                    {name: 'Potato Fish ovo', gridX: 2, gridY: 0, type: 'person'},
-                    {name: 'Potato Joey', gridX: -2, gridY: 0, type: 'person'},
-                    {name: 'Joey3', gridX: 0, gridY: 2, type: 'person'}
-                ];
-            }
-            
             renderPeople();
             applyZoom();
             
-            // 滾動到地圖中心，讓所有物件都在視野中
             const centerX = MAP_WIDTH / 2 - window.innerWidth / 2;
             const centerY = MAP_HEIGHT / 2 - window.innerHeight / 2;
             
             window.scrollTo(centerX, centerY);
+            
+            // 設定 Firebase 監聽器
+            setupFirebaseListener();
         }
-        
-        window.addEventListener('resize', () => {
-            renderPeople();
-        });
-        
+
         initialize();
     </script>
 </body>
