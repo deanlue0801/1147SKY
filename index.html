@@ -501,7 +501,7 @@
                     changeColor(index);
                 });
                 
-                // 手機觸控優化：長按開始拖拽，短點擊改色（改色模式下）
+                // 手機觸控優化：長按開始拖拽，短點擊改色
                 let touchTimer = null;
                 let touchStartTime = 0;
                 
@@ -517,12 +517,7 @@
                         navigator.vibrate(50);
                     }
                     
-                    if (colorMode) {
-                        // 改色模式：直接改色，不設定拖拽計時器
-                        return;
-                    }
-                    
-                    // 拖拽模式：設定長按計時器
+                    // 設定長按計時器（拖拽）
                     touchTimer = setTimeout(() => {
                         startDrag(e);
                     }, 300); // 300ms 長按觸發拖拽
@@ -542,12 +537,14 @@
                         touchTimer = null;
                     }
                     
-                    // 短點擊處理
-                    if (touchDuration < 300) {
-                        if (colorMode) {
-                            const selectedColor = document.getElementById('itemColor').value;
-                            people[index].color = selectedColor;
-                            renderPeople();
+                    // 🎨 短點擊改色（不需要切換模式）
+                    if (touchDuration < 300 && !isDragging) {
+                        // 直接循環改色，就像桌面右鍵一樣
+                        changeColor(index);
+                        
+                        // 改色震動反饋
+                        if (navigator.vibrate) {
+                            navigator.vibrate(100);
                         }
                     }
                     
@@ -564,10 +561,12 @@
                 // 滑鼠事件（桌面）
                 div.addEventListener('mousedown', (e) => {
                     if (colorMode) {
+                        // 改色模式：使用選色器的顏色
                         const selectedColor = document.getElementById('itemColor').value;
                         people[index].color = selectedColor;
                         renderPeople();
                     } else {
+                        // 拖拽模式
                         startDrag(e);
                     }
                 });
