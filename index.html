@@ -501,7 +501,7 @@
                     changeColor(index);
                 });
                 
-                // 手機觸控優化：長按開始拖拽，短點擊改色
+                // 手機觸控優化：只做拖拽，改色用模式按鈕
                 let touchTimer = null;
                 let touchStartTime = 0;
                 
@@ -517,10 +517,15 @@
                         navigator.vibrate(50);
                     }
                     
-                    // 設定長按計時器（拖拽）
+                    if (colorMode) {
+                        // 改色模式：直接改色，不設定拖拽計時器
+                        return;
+                    }
+                    
+                    // 拖拽模式：設定長按計時器
                     touchTimer = setTimeout(() => {
                         startDrag(e);
-                    }, 300); // 300ms 長按觸發拖拽
+                    }, 200); // 縮短到 200ms，更靈敏
                     
                 }, { passive: false });
                 
@@ -537,10 +542,11 @@
                         touchTimer = null;
                     }
                     
-                    // 🎨 短點擊改色（不需要切換模式）
-                    if (touchDuration < 300 && !isDragging) {
-                        // 直接循環改色，就像桌面右鍵一樣
-                        changeColor(index);
+                    // 🎨 只在改色模式下才改色
+                    if (touchDuration < 200 && colorMode && !isDragging) {
+                        const selectedColor = document.getElementById('itemColor').value;
+                        people[index].color = selectedColor;
+                        renderPeople();
                         
                         // 改色震動反饋
                         if (navigator.vibrate) {
