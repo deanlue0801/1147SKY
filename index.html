@@ -783,7 +783,25 @@
                             if (passwordInput === EDIT_PASSWORD) {
                                 isAuthenticated = true;
                                 updateDebugInfo('✅ 密碼正確！');
-                                startDragMode(e, index);
+                                
+                                // 🔧 密碼驗證後重新獲取觸控位置
+                                const newClientX = e.touches ? e.touches[0].clientX : clientX;
+                                const newClientY = e.touches ? e.touches[0].clientY : clientY;
+                                
+                                // 重新創建事件物件，使用新的座標
+                                const newEvent = {
+                                    touches: e.touches ? [{
+                                        clientX: newClientX,
+                                        clientY: newClientY
+                                    }] : null,
+                                    clientX: newClientX,
+                                    clientY: newClientY,
+                                    preventDefault: e.preventDefault.bind(e),
+                                    stopPropagation: e.stopPropagation.bind(e),
+                                    target: e.target
+                                };
+                                
+                                startDragMode(newEvent, index);
                                 isDraggingThis = true;
                             } else if (passwordInput !== null) {
                                 updateDebugInfo('❌ 密碼錯誤！');
@@ -957,30 +975,27 @@
         function startDragMode(e, index) {
             updateDebugInfo('🎯 startDragMode 被呼叫');
             
-            // 🔐 移除重複檢查，由呼叫方負責檢查權限
-            
             if (isDragging) {
                 updateDebugInfo('❌ 已經在拖拽中');
                 return;
             }
-            if (e.target.classList.contains('delete-btn')) {
+            if (e.target && e.target.classList.contains('delete-btn')) {
                 updateDebugInfo('❌ 點到刪除按鈕');
                 return;
             }
             
+            // 🔧 重新獲取即時的觸控位置，避免密碼輸入造成的偏移
+            const element = document.querySelector(`[data-index="${index}"]`);
+            const rect = element.getBoundingClientRect();
+            
+            // 如果是密碼驗證後的重新啟動，使用當前手指位置
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
             
             isDragging = true;
             dragPerson = index;
             
-            const element = document.querySelector(`[data-index="${index}"]`);
-            const rect = element.getBoundingClientRect();
-            
-            // 🔥 修正：計算相對於容器的偏移
-            const container = document.getElementById('mapContainer');
-            const containerRect = container.getBoundingClientRect();
-            
+            // 🔧 重新計算偏移，基於當前實際位置
             dragOffset.x = clientX - (rect.left + rect.width/2);
             dragOffset.y = clientY - (rect.top + rect.height/2);
             
@@ -992,10 +1007,10 @@
                 navigator.vibrate([100, 50, 100]);
             }
             
-            updateDebugInfo(`🎯 拖拽開始: ${people[index].name}<br/>狀態: ${isDragging ? '拖拽中' : '未拖拽'}<br/>拖拽對象: ${dragPerson}`);
+            updateDebugInfo(`🎯 拖拽開始: ${people[index].name}<br/>偏移: (${Math.round(dragOffset.x)}, ${Math.round(dragOffset.y)})`);
             
-            e.preventDefault();
-            e.stopPropagation();
+            if (e.preventDefault) e.preventDefault();
+            if (e.stopPropagation) e.stopPropagation();
         }
         
         // 🎯 結束拖拽
