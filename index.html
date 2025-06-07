@@ -21,15 +21,40 @@
             right: 0;
             z-index: 1000;
             margin: 0;
-            padding: 10px;
+            padding: 8px;
             background: rgba(52, 73, 94, 0.95);
             backdrop-filter: blur(5px);
             border-radius: 0;
             display: flex;
-            gap: 10px;
+            gap: 5px;
             align-items: center;
             flex-wrap: wrap;
             border-bottom: 1px solid rgba(127, 140, 141, 0.3);
+            font-size: 12px;
+        }
+        
+        @media (max-width: 768px) {
+            .controls {
+                padding: 5px;
+                gap: 3px;
+                font-size: 11px;
+            }
+            
+            .controls input, .controls select {
+                font-size: 12px;
+                padding: 4px;
+                min-width: 60px;
+            }
+            
+            .controls button {
+                font-size: 11px;
+                padding: 4px 6px;
+            }
+            
+            .info {
+                font-size: 10px;
+                margin-left: 5px;
+            }
         }
         
         .controls input, .controls select {
@@ -102,7 +127,7 @@
         
         .person {
             position: absolute;
-            color: #2ecc71;
+            color: #ffffff;  /* ✅ 改為白色 */
             font-size: 10px;
             white-space: nowrap;
             text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
@@ -139,49 +164,49 @@
         .person.green {
             background: rgba(46, 204, 113, 0.2);
             border-color: #2ecc71;
-            color: #2ecc71;
+            color: #ffffff;  /* ✅ 白色文字 */
         }
         
         .person.blue {
             background: rgba(52, 152, 219, 0.2);
             border-color: #3498db;
-            color: #3498db;
+            color: #ffffff;  /* ✅ 白色文字 */
         }
         
         .person.purple {
             background: rgba(155, 89, 182, 0.2);
             border-color: #9b59b6;
-            color: #9b59b6;
+            color: #ffffff;  /* ✅ 白色文字 */
         }
         
         .person.orange {
             background: rgba(230, 126, 34, 0.2);
             border-color: #e67e22;
-            color: #e67e22;
+            color: #ffffff;  /* ✅ 白色文字 */
         }
         
         .person.pink {
             background: rgba(233, 30, 99, 0.2);
             border-color: #e91e63;
-            color: #e91e63;
+            color: #ffffff;  /* ✅ 白色文字 */
         }
         
         .person.yellow {
             background: rgba(241, 196, 15, 0.2);
             border-color: #f1c40f;
-            color: #f1c40f;
+            color: #000000;  /* ✅ 黃色背景用黑色文字，比較清楚 */
         }
         
         .person.cyan {
             background: rgba(26, 188, 156, 0.2);
             border-color: #1abc9c;
-            color: #1abc9c;
+            color: #ffffff;  /* ✅ 白色文字 */
         }
         
         .person.red {
             background: rgba(231, 76, 60, 0.2);
             border-color: #e74c3c;
-            color: #e74c3c;
+            color: #ffffff;  /* ✅ 白色文字 */
         }
         
         .coords {
@@ -464,7 +489,9 @@
                     changeColor(index);
                 });
                 
+                // 支援觸控和滑鼠
                 div.addEventListener('mousedown', startDrag);
+                div.addEventListener('touchstart', startDrag, { passive: false });
                 container.appendChild(div);
             });
             
@@ -618,38 +645,76 @@
             e.stopPropagation();
         }
 
-        // 事件監聽器
-        document.addEventListener('mousemove', (e) => {
-            const container = document.getElementById('mapContainer');
-            const rect = container.getBoundingClientRect();
-            const pixelX = e.clientX - rect.left;
-            const pixelY = e.clientY - rect.top;
-            const grid = pixelToGrid(pixelX, pixelY);
-            
-            document.getElementById('coords').textContent = 
-                `座標: ${Math.round(pixelX)}, ${Math.round(pixelY)} | 格線: (${grid.gridX}, ${grid.gridY})`;
-            
-            if (isDragging && dragPerson !== null) {
-                const newPixelX = e.clientX - rect.left - dragOffset.x;
-                const newPixelY = e.clientY - rect.top - dragOffset.y;
-                const newGrid = pixelToGrid(newPixelX, newPixelY);
-                
-                people[dragPerson].gridX = newGrid.gridX;
-                people[dragPerson].gridY = newGrid.gridY;
-                
-                renderPeople();
-            }
-        });
+        // 觸控支援
+        let touchStartPos = null;
         
-        document.addEventListener('mouseup', () => {
-            if (isDragging) {
-                setTimeout(() => {
-                    isDragging = false;
-                    dragPerson = null;
-                    document.querySelectorAll('.person').forEach(p => p.classList.remove('dragging'));
-                }, 10);
-            }
-        });
+        // 修改拖拽功能以支援觸控
+        function startDrag(e) {
+            if (e.target.classList.contains('delete-btn')) return;
+            
+            // 支援觸控和滑鼠
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            isDragging = true;
+            dragPerson = parseInt(e.target.closest('.person').dataset.index);
+            
+            const rect = e.target.closest('.person').getBoundingClientRect();
+            dragOffset.x = clientX - (rect.left + rect.width/2);
+            dragOffset.y = clientY - (rect.top + rect.height/2);
+            
+            e.target.closest('.person').classList.add('dragging');
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        // 事件監聽器 - 支援觸控
+        function setupEventListeners() {
+            const handleMove = (e) => {
+                const container = document.getElementById('mapContainer');
+                const rect = container.getBoundingClientRect();
+                
+                // 支援觸控和滑鼠
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                
+                const pixelX = clientX - rect.left;
+                const pixelY = clientY - rect.top;
+                const grid = pixelToGrid(pixelX, pixelY);
+                
+                document.getElementById('coords').textContent = 
+                    `座標: ${Math.round(pixelX)}, ${Math.round(pixelY)} | 格線: (${grid.gridX}, ${grid.gridY})`;
+                
+                if (isDragging && dragPerson !== null) {
+                    const newPixelX = clientX - rect.left - dragOffset.x;
+                    const newPixelY = clientY - rect.top - dragOffset.y;
+                    const newGrid = pixelToGrid(newPixelX, newPixelY);
+                    
+                    people[dragPerson].gridX = newGrid.gridX;
+                    people[dragPerson].gridY = newGrid.gridY;
+                    
+                    renderPeople();
+                }
+            };
+            
+            const handleEnd = () => {
+                if (isDragging) {
+                    setTimeout(() => {
+                        isDragging = false;
+                        dragPerson = null;
+                        document.querySelectorAll('.person').forEach(p => p.classList.remove('dragging'));
+                    }, 10);
+                }
+            };
+            
+            // 滑鼠事件
+            document.addEventListener('mousemove', handleMove);
+            document.addEventListener('mouseup', handleEnd);
+            
+            // 觸控事件
+            document.addEventListener('touchmove', handleMove, { passive: false });
+            document.addEventListener('touchend', handleEnd);
+        }
 
         // 鍵盤快捷鍵
         document.addEventListener('keydown', (e) => {
@@ -693,6 +758,9 @@
             
             // ✅ 設定 Firebase 監聽器（會自動載入資料）
             setupFirebaseListener();
+            
+            // 設定事件監聽器
+            setupEventListeners();
         }
 
         initialize();
