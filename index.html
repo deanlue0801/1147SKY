@@ -80,11 +80,12 @@
                 margin-left: 5px;
             }
             
-            /* 🔥 手機版地圖容器調整 - 移除上邊距 */
+            /* 🔥 手機版地圖容器調整 - 徹底移除空白 */
             .map-container {
-                margin-top: 0; /* 🔧 手機版不要上邊距，讓地圖直接從工具列下方開始 */
-                padding-top: 60px; /* 改用padding，確保內容不被工具列遮住 */
-                min-height: calc(100vh - 0px);
+                margin-top: 0;    /* 完全移除上邊距 */
+                padding-top: 0;   /* 完全移除上padding */
+                min-height: 100vh; /* 使用全螢幕高度 */
+                /* 讓工具列浮在地圖上方，而不是推開地圖 */
             }
             
             /* 🔥 手機版座標顯示優化 */
@@ -190,8 +191,8 @@
         
         .map-container {
             position: relative;
-            width: 3000px; /* 🔧 和 MAP_WIDTH 保持一致 */
-            height: 2400px; /* 🔧 和 MAP_HEIGHT 保持一致 */
+            width: 5000px; /* 🔧 和 MAP_WIDTH 保持一致 */
+            height: 4000px; /* 🔧 和 MAP_HEIGHT 保持一致 */
             margin: 0;
             background: #34495e;
             border: none;
@@ -539,8 +540,8 @@
 
         // 全域變數
         const GRID_SIZE = 40;
-        const MAP_WIDTH = 3000; // 🔧 底圖寬度（像素）
-        const MAP_HEIGHT = 2400;// 🔧 底圖高度（像素）
+        const MAP_WIDTH = 5000; // 🔧 底圖寬度（像素）
+        const MAP_HEIGHT = 4000;// 🔧 底圖高度（像素）
         const GRID_ORIGIN_X = MAP_WIDTH / 2;
         const GRID_ORIGIN_Y = MAP_HEIGHT / 2;
         
