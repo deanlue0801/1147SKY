@@ -696,7 +696,7 @@
                 
                 renderPeople();
                 
-                // 🔥 修復：正確的執行順序 - 只在初次載入時執行
+                // 🔥 簡化：直接定位到熊窩即可
                 if (!hasInitialCentered && hasLoadedFromFirebase) {
                     // ✅ 步驟1：先設定縮放比例
                     if (isMobile()) {
@@ -708,18 +708,31 @@
                     }
                     applyZoom();
                     
-                    // ✅ 步驟2：然後定位到熊窩
+                    // ✅ 步驟2：定位到熊窩（也就是畫布中心）
                     setTimeout(() => {
-                        console.log('縮放完成，現在定位到熊窩...');
-                        centerViewOnBearDen();
-                        hasInitialCentered = true; // 🔥 標記已完成初始定位
+                        console.log('縮放完成，定位到熊窩...');
                         
-                        // 手機版顯示完成提示
+                        // 🔧 測試版：手機版先用最簡單的方式定位到地圖中心
                         if (isMobile()) {
-                            setTimeout(() => {
-                                updateDebugInfo('📱 手機模式已就緒<br/>🎯 已定位到熊窩<br/>💡 雙指縮放 | 長按拖拽');
-                            }, 200);
+                            console.log('手機版測試：直接移動到地圖中心');
+                            // 地圖中心就是 MAP_WIDTH/2, MAP_HEIGHT/2 = 2500, 2000
+                            const mapCenterX = MAP_WIDTH / 2;  // 2500
+                            const mapCenterY = MAP_HEIGHT / 2; // 2000
+                            
+                            // 簡單計算：讓地圖中心顯示在螢幕中心
+                            const scrollX = mapCenterX - window.innerWidth / 2;
+                            const scrollY = mapCenterY - window.innerHeight / 2;
+                            
+                            console.log(`測試定位: 地圖中心(${mapCenterX}, ${mapCenterY}) -> 滾動到(${scrollX}, ${scrollY})`);
+                            window.scrollTo(Math.max(0, scrollX), Math.max(0, scrollY));
+                            
+                            updateDebugInfo(`📱 測試版定位<br/>🎯 地圖中心: (${mapCenterX}, ${mapCenterY})<br/>📍 滾動到: (${Math.round(scrollX)}, ${Math.round(scrollY)})`);
+                        } else {
+                            // 桌面版用原來的方式
+                            centerViewOnBearDen();
                         }
+                        
+                        hasInitialCentered = true;
                     }, 200);
                 }
                 
