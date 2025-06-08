@@ -1169,40 +1169,67 @@
         
         // 🔥 修復：將視窗中心定位到熊窩
         function centerViewOnBearDen() {
-            const bearDen = people.find(p => p.name === '熊窩' || p.type === 'center');
+            // 🔍 先列出所有物件，方便除錯
+            console.log('所有物件列表:');
+            people.forEach((p, i) => {
+                console.log(`${i}: ${p.name} (${p.gridX}, ${p.gridY}) type:${p.type}`);
+            });
+            
+            // 🎯 優先找名稱為「熊窩」的物件
+            let bearDen = people.find(p => p.name === '熊窩');
+            
+            // 如果沒找到，再找 type 為 'center' 的物件
             if (!bearDen) {
-                console.log('找不到熊窩，使用默認中心');
-                // 如果找不到熊窩，至少移動到地圖中心
+                bearDen = people.find(p => p.type === 'center');
+            }
+            
+            // 如果都沒找到，找第一個物件
+            if (!bearDen && people.length > 0) {
+                bearDen = people[0];
+                console.log('找不到熊窩，使用第一個物件:', bearDen.name);
+            }
+            
+            if (!bearDen) {
+                console.log('完全找不到任何物件，使用地圖中心');
+                // 如果找不到任何物件，至少移動到地圖中心
                 const scrollX = GRID_ORIGIN_X - window.innerWidth / 2;
                 const scrollY = GRID_ORIGIN_Y - window.innerHeight / 2;
                 window.scrollTo(Math.max(0, scrollX), Math.max(0, scrollY));
                 return;
             }
             
+            console.log('找到目標物件:', bearDen.name, '位置:', bearDen.gridX, bearDen.gridY);
+            
             const bearPos = gridToPixel(bearDen.gridX, bearDen.gridY);
-            console.log('熊窩位置:', bearPos);
+            console.log('轉換後的像素位置:', bearPos);
             
             // 🔥 手機版修復：重新計算滾動位置
             if (isMobile()) {
-                // 手機版：簡化計算，直接基於熊窩位置
+                // 手機版：考慮40%縮放的影響
                 const controlsHeight = 70;
                 const viewportWidth = window.innerWidth;
                 const viewportHeight = window.innerHeight - controlsHeight;
                 
-                // 計算要讓熊窩居中需要的滾動距離
-                const targetScrollX = bearPos.x - (viewportWidth / 2);
-                const targetScrollY = bearPos.y - (viewportHeight / 2) - controlsHeight;
+                // 🔧 關鍵修復：在40%縮放下，滾動距離也要相應調整
+                const effectiveZoom = zoomLevel; // 0.4
                 
-                console.log(`手機版定位計算:
+                // 計算在當前縮放下，要讓目標物件居中需要的滾動距離
+                const targetScrollX = (bearPos.x * effectiveZoom) - (viewportWidth / 2);
+                const targetScrollY = (bearPos.y * effectiveZoom) - (viewportHeight / 2);
+                
+                console.log(`手機版定位計算 (修復版):
                     視窗尺寸: ${viewportWidth} x ${viewportHeight}
-                    熊窩像素位置: ${bearPos.x}, ${bearPos.y}
+                    目標物件: ${bearDen.name} 格線(${bearDen.gridX}, ${bearDen.gridY})
+                    像素位置: ${bearPos.x}, ${bearPos.y}
+                    當前縮放: ${effectiveZoom}
+                    縮放後位置: ${bearPos.x * effectiveZoom}, ${bearPos.y * effectiveZoom}
                     目標滾動位置: ${targetScrollX}, ${targetScrollY}`);
                 
                 window.scrollTo(Math.max(0, targetScrollX), Math.max(0, targetScrollY));
                 
                 // 更新除錯資訊
                 setTimeout(() => {
-                    updateDebugInfo(`📱 手機版定位完成<br/>🎯 熊窩格線: (${bearDen.gridX}, ${bearDen.gridY})<br/>📍 滾動到: (${Math.round(targetScrollX)}, ${Math.round(targetScrollY)})<br/>🔍 縮放: ${Math.round(zoomLevel * 100)}%`);
+                    updateDebugInfo(`📱 手機版定位完成<br/>🎯 ${bearDen.name} 格線: (${bearDen.gridX}, ${bearDen.gridY})<br/>📍 滾動到: (${Math.round(targetScrollX)}, ${Math.round(targetScrollY)})<br/>🔍 縮放: ${Math.round(zoomLevel * 100)}%`);
                 }, 100);
             } else {
                 // 桌面版：原來的邏輯
@@ -1212,7 +1239,7 @@
                 const scrollX = bearPos.x - viewportCenterX / zoomLevel;
                 const scrollY = bearPos.y - viewportCenterY / zoomLevel;
                 
-                console.log(`桌面版定位到熊窩: 格線(${bearDen.gridX}, ${bearDen.gridY}) -> 像素(${bearPos.x}, ${bearPos.y}) -> 滾動(${scrollX}, ${scrollY})`);
+                console.log(`桌面版定位: ${bearDen.name} 格線(${bearDen.gridX}, ${bearDen.gridY}) -> 像素(${bearPos.x}, ${bearPos.y}) -> 滾動(${scrollX}, ${scrollY})`);
                 
                 window.scrollTo(Math.max(0, scrollX), Math.max(0, scrollY));
             }
