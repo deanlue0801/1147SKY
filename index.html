@@ -657,6 +657,18 @@
             }, 1000);
         }
 
+        // 🔥 修復：考慮縮放的座標轉換函數
+        function getContainerCoordinates(clientX, clientY) {
+            const container = document.getElementById('mapContainer');
+            const rect = container.getBoundingClientRect();
+            
+            // 計算相對於容器的座標
+            const containerX = (clientX - rect.left) / zoomLevel;
+            const containerY = (clientY - rect.top) / zoomLevel;
+            
+            return { x: containerX, y: containerY };
+        }
+
         // 座標轉換函數
         function gridToPixel(gridX, gridY) {
             const gridStep = 40;
@@ -830,32 +842,25 @@
                     
                     updateDebugInfo('🍎 iOS 元素觸控移動');
                     
-                    const container = document.getElementById('mapContainer');
-                    const rect = container.getBoundingClientRect();
+                    // 🔥 修復：使用新的座標轉換函數
+                    const containerCoords = getContainerCoordinates(e.touches[0].clientX, e.touches[0].clientY);
                     
-                    const clientX = e.touches[0].clientX;
-                    const clientY = e.touches[0].clientY;
+                    // 計算新位置（考慮拖拽偏移）
+                    const newCenterX = containerCoords.x - dragOffset.x / zoomLevel;
+                    const newCenterY = containerCoords.y - dragOffset.y / zoomLevel;
                     
-                    // 計算新位置
-                    const newCenterX = clientX - dragOffset.x;
-                    const newCenterY = clientY - dragOffset.y;
-                    
-                    // 轉換為容器內的座標
-                    const containerX = newCenterX - rect.left;
-                    const containerY = newCenterY - rect.top;
-                    
-                    const newGrid = pixelToGrid(containerX, containerY);
+                    const newGrid = pixelToGrid(newCenterX, newCenterY);
                     
                     // 更新位置
                     people[dragPerson].gridX = newGrid.gridX;
                     people[dragPerson].gridY = newGrid.gridY;
                     
-                    updateDebugInfo(`🍎 iOS 拖拽移動<br/>格線: (${newGrid.gridX}, ${newGrid.gridY})`);
+                    updateDebugInfo(`🍎 iOS 拖拽移動<br/>格線: (${newGrid.gridX}, ${newGrid.gridY})<br/>縮放: ${Math.round(zoomLevel * 100)}%`);
                     
                     renderPeople();
                     
                     // 創建拖拽軌跡
-                    createDragTrail(containerX, containerY);
+                    createDragTrail(newCenterX, newCenterY);
                     
                     // 更新座標顯示
                     document.getElementById('coords').textContent = 
@@ -869,21 +874,14 @@
                     e.preventDefault();
                     e.stopPropagation();
                     
-                    const container = document.getElementById('mapContainer');
-                    const rect = container.getBoundingClientRect();
+                    // 🔥 修復：使用新的座標轉換函數
+                    const containerCoords = getContainerCoordinates(e.touches[0].clientX, e.touches[0].clientY);
                     
-                    const clientX = e.touches[0].clientX;
-                    const clientY = e.touches[0].clientY;
+                    // 計算新位置（考慮拖拽偏移）
+                    const newCenterX = containerCoords.x - dragOffset.x / zoomLevel;
+                    const newCenterY = containerCoords.y - dragOffset.y / zoomLevel;
                     
-                    // 計算新位置
-                    const newCenterX = clientX - dragOffset.x;
-                    const newCenterY = clientY - dragOffset.y;
-                    
-                    // 轉換為容器內的座標
-                    const containerX = newCenterX - rect.left;
-                    const containerY = newCenterY - rect.top;
-                    
-                    const newGrid = pixelToGrid(containerX, containerY);
+                    const newGrid = pixelToGrid(newCenterX, newCenterY);
                     
                     // 🔥 Android：改回用 renderPeople()，但延遲更新除錯資訊
                     people[dragPerson].gridX = newGrid.gridX;
@@ -893,11 +891,11 @@
                     
                     // 延遲顯示除錯資訊，避免干擾渲染
                     setTimeout(() => {
-                        androidDebug(`拖拽中: (${newGrid.gridX}, ${newGrid.gridY})`);
+                        androidDebug(`拖拽中: (${newGrid.gridX}, ${newGrid.gridY}) 縮放:${Math.round(zoomLevel * 100)}%`);
                     }, 10);
                     
                     // 創建拖拽軌跡
-                    createDragTrail(containerX, containerY);
+                    createDragTrail(newCenterX, newCenterY);
                 } else {
                     // 🖥️ 桌面或其他：防止在長按期間移動
                     if (touchStarted && longPressTimer) {
@@ -995,9 +993,9 @@
             isDragging = true;
             dragPerson = index;
             
-            // 🔧 重新計算偏移，基於當前實際位置
-            dragOffset.x = clientX - (rect.left + rect.width/2);
-            dragOffset.y = clientY - (rect.top + rect.height/2);
+            // 🔥 修復：考慮縮放計算偏移
+            dragOffset.x = (clientX - (rect.left + rect.width/2)) * zoomLevel;
+            dragOffset.y = (clientY - (rect.top + rect.height/2)) * zoomLevel;
             
             element.classList.add('dragging');
             showDragHint(true);
@@ -1007,7 +1005,7 @@
                 navigator.vibrate([100, 50, 100]);
             }
             
-            updateDebugInfo(`🎯 拖拽開始: ${people[index].name}<br/>偏移: (${Math.round(dragOffset.x)}, ${Math.round(dragOffset.y)})`);
+            updateDebugInfo(`🎯 拖拽開始: ${people[index].name}<br/>偏移: (${Math.round(dragOffset.x)}, ${Math.round(dragOffset.y)})<br/>縮放: ${Math.round(zoomLevel * 100)}%`);
             
             if (e.preventDefault) e.preventDefault();
             if (e.stopPropagation) e.stopPropagation();
@@ -1189,11 +1187,6 @@
             }
         }
 
-        // 🎯 全域觸控移動處理 - Android 專用（移除）
-        // document.addEventListener('touchmove', (e) => {
-        //     // 已移除，改用元素內處理
-        // }, { passive: false });
-        
         // 🤖 Android 專用：全域觸控結束處理
         document.addEventListener('touchend', (e) => {
             if (!isAndroid()) return;
@@ -1212,26 +1205,23 @@
         // 事件監聽器 - 支援觸控
         function setupEventListeners() {
             const handleMove = (e) => {
-                const container = document.getElementById('mapContainer');
-                const rect = container.getBoundingClientRect();
-                
-                // 支援觸控和滑鼠
+                // 🔥 修復：使用新的座標轉換函數
                 const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
                 
-                const pixelX = clientX - rect.left;
-                const pixelY = clientY - rect.top;
-                const grid = pixelToGrid(pixelX, pixelY);
+                const containerCoords = getContainerCoordinates(clientX, clientY);
+                const grid = pixelToGrid(containerCoords.x, containerCoords.y);
                 
                 if (!isDragging) {
                     document.getElementById('coords').textContent = 
-                        `座標: ${Math.round(pixelX)}, ${Math.round(pixelY)} | 格線: (${grid.gridX}, ${grid.gridY})`;
+                        `座標: ${Math.round(containerCoords.x)}, ${Math.round(containerCoords.y)} | 格線: (${grid.gridX}, ${grid.gridY}) | 縮放: ${Math.round(zoomLevel * 100)}%`;
                 }
                 
                 if (isDragging && dragPerson !== null) {
-                    const newPixelX = clientX - rect.left - dragOffset.x;
-                    const newPixelY = clientY - rect.top - dragOffset.y;
-                    const newGrid = pixelToGrid(newPixelX, newPixelY);
+                    // 🔥 修復：考慮縮放和偏移的拖拽計算
+                    const newCenterX = containerCoords.x - dragOffset.x / zoomLevel;
+                    const newCenterY = containerCoords.y - dragOffset.y / zoomLevel;
+                    const newGrid = pixelToGrid(newCenterX, newCenterY);
                     
                     people[dragPerson].gridX = newGrid.gridX;
                     people[dragPerson].gridY = newGrid.gridY;
@@ -1239,7 +1229,7 @@
                     renderPeople();
                     
                     // 🔥 創建拖拽軌跡
-                    createDragTrail(newPixelX, newPixelY);
+                    createDragTrail(newCenterX, newCenterY);
                 }
             };
             
@@ -1254,9 +1244,6 @@
             // 滑鼠事件
             document.addEventListener('mousemove', handleMove);
             document.addEventListener('mouseup', handleEnd);
-            
-            // 觸控事件
-            // 移除原本的 touchend 監聽，避免衝突
         }
 
         // 鍵盤快捷鍵
