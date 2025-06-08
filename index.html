@@ -666,6 +666,8 @@
             }
         }
 
+        let hasInitialCentered = false; // 🔥 新增：追蹤是否已經完成初始定位
+
         function setupFirebaseListener() {
             if (!isFirebaseEnabled) return;
             
@@ -694,28 +696,23 @@
                 
                 renderPeople();
                 
-                // 🔥 關鍵修復：數據載入完成後立即定位到熊窩
-                setTimeout(() => {
-                    console.log('嘗試定位到熊窩，當前 people 數量:', people.length);
-                    console.log('人員列表:', people.map(p => `${p.name}(${p.gridX},${p.gridY})`));
-                    
-                    centerViewOnBearDen();
-                    
-                    // 🔥 手機版：如果第一次定位失敗，多試幾次
-                    if (isMobile()) {
-                        let retryCount = 0;
-                        const retryInterval = setInterval(() => {
-                            retryCount++;
-                            console.log(`手機版重試定位 第${retryCount}次`);
-                            centerViewOnBearDen();
-                            
-                            if (retryCount >= 3) {
-                                clearInterval(retryInterval);
-                                updateDebugInfo('📱 手機模式已就緒<br/>🎯 定位嘗試完成<br/>💡 雙指縮放 | 長按拖拽<br/>🔧 如果位置不對請點擊紫色按鈕');
-                            }
-                        }, 300);
-                    }
-                }, 200);
+                // 🔥 修復：只在初次載入時定位，避免編輯時重複定位
+                if (!hasInitialCentered && hasLoadedFromFirebase) {
+                    setTimeout(() => {
+                        console.log('首次載入，嘗試定位到熊窩...');
+                        console.log('人員列表:', people.map(p => `${p.name}(${p.gridX},${p.gridY})`));
+                        
+                        centerViewOnBearDen();
+                        hasInitialCentered = true; // 🔥 標記已完成初始定位
+                        
+                        // 手機版顯示完成提示
+                        if (isMobile()) {
+                            setTimeout(() => {
+                                updateDebugInfo('📱 手機模式已就緒<br/>🎯 已定位到熊窩<br/>💡 雙指縮放 | 長按拖拽');
+                            }, 200);
+                        }
+                    }, 200);
+                }
                 
                 isUpdatingFromFirebase = false;
             });
@@ -1218,8 +1215,8 @@
             if (zoomLevel < 3.0) {
                 zoomLevel *= 1.2;
                 applyZoom();
-                // 🔥 縮放後重新定位到熊窩
-                setTimeout(() => centerViewOnBearDen(), 100);
+                // 🔥 移除自動定位，避免編輯時干擾
+                // setTimeout(() => centerViewOnBearDen(), 100);
             }
         }
         
@@ -1227,15 +1224,15 @@
             if (zoomLevel > 0.1) {
                 zoomLevel /= 1.2;
                 applyZoom();
-                // 🔥 縮放後重新定位到熊窩
-                setTimeout(() => centerViewOnBearDen(), 100);
+                // 🔥 移除自動定位，避免編輯時干擾
+                // setTimeout(() => centerViewOnBearDen(), 100);
             }
         }
         
         window.resetZoom = function() {
             zoomLevel = 1.0;
             applyZoom();
-            // 🔥 重置縮放後重新定位到熊窩
+            // 🔥 重置縮放時才手動定位到熊窩
             setTimeout(() => centerViewOnBearDen(), 100);
         }
         
@@ -1532,8 +1529,8 @@
                             zoomLevel = newZoomLevel;
                             applyZoom();
                             
-                            // 🔥 手機版雙指縮放時也保持熊窩為中心
-                            setTimeout(() => centerViewOnBearDen(), 50);
+                            // 🔥 移除雙指縮放時的自動定位，避免編輯時干擾
+                            // setTimeout(() => centerViewOnBearDen(), 50);
                             
                             // 更新縮放提示
                             if (zoomHint) {
