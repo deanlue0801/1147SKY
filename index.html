@@ -1110,26 +1110,66 @@
             }
         }
 
-        // 縮放功能
+        // 🔥 修復：以熊窩為中心的縮放功能
         function applyZoom() {
             const container = document.getElementById('mapContainer');
-            const containerRect = container.getBoundingClientRect();
-            const viewportCenterX = window.innerWidth / 2;
-            const viewportCenterY = window.innerHeight / 2;
             
-            const containerCenterX = (viewportCenterX - containerRect.left) / zoomLevel;
-            const containerCenterY = (viewportCenterY - containerRect.top) / zoomLevel;
+            // 🎯 找到熊窩的位置作為縮放中心
+            const bearDen = people.find(p => p.name === '熊窩' || p.type === 'center');
+            let centerX, centerY;
             
-            container.style.transformOrigin = `${containerCenterX}px ${containerCenterY}px`;
+            if (bearDen) {
+                // 以熊窩為縮放中心
+                const bearPos = gridToPixel(bearDen.gridX, bearDen.gridY);
+                centerX = bearPos.x;
+                centerY = bearPos.y;
+            } else {
+                // 如果沒有熊窩，使用地圖中心
+                centerX = GRID_ORIGIN_X;
+                centerY = GRID_ORIGIN_Y;
+            }
+            
+            // 設定縮放原點為熊窩位置
+            container.style.transformOrigin = `${centerX}px ${centerY}px`;
             container.style.transform = `scale(${zoomLevel})`;
             
             document.getElementById('zoomLevel').textContent = Math.round(zoomLevel * 100) + '%';
+        }
+        
+        // 🔥 新增：將視窗中心定位到熊窩
+        function centerViewOnBearDen() {
+            const bearDen = people.find(p => p.name === '熊窩' || p.type === 'center');
+            if (!bearDen) return;
+            
+            const bearPos = gridToPixel(bearDen.gridX, bearDen.gridY);
+            const container = document.getElementById('mapContainer');
+            const rect = container.getBoundingClientRect();
+            
+            // 計算需要滾動的位置，使熊窩位於視窗中心
+            const viewportCenterX = window.innerWidth / 2;
+            const viewportCenterY = window.innerHeight / 2;
+            
+            // 考慮縮放後的實際位置
+            const scaledBearX = bearPos.x * zoomLevel;
+            const scaledBearY = bearPos.y * zoomLevel;
+            
+            // 計算滾動位置
+            const scrollX = scaledBearX - viewportCenterX;
+            const scrollY = scaledBearY - viewportCenterY;
+            
+            // 🔥 手機版：考慮控制列高度
+            const controlsHeight = isMobile() ? 70 : 0;
+            const adjustedScrollY = scrollY - (viewportCenterY - controlsHeight) / 2;
+            
+            window.scrollTo(Math.max(0, scrollX), Math.max(0, adjustedScrollY));
         }
         
         window.zoomIn = function() {
             if (zoomLevel < 3.0) {
                 zoomLevel *= 1.2;
                 applyZoom();
+                // 🔥 縮放後重新定位到熊窩
+                setTimeout(() => centerViewOnBearDen(), 100);
             }
         }
         
@@ -1137,12 +1177,16 @@
             if (zoomLevel > 0.1) {
                 zoomLevel /= 1.2;
                 applyZoom();
+                // 🔥 縮放後重新定位到熊窩
+                setTimeout(() => centerViewOnBearDen(), 100);
             }
         }
         
         window.resetZoom = function() {
             zoomLevel = 1.0;
             applyZoom();
+            // 🔥 重置縮放後重新定位到熊窩
+            setTimeout(() => centerViewOnBearDen(), 100);
         }
 
         // 功能函數
@@ -1361,31 +1405,24 @@
         function initialize() {
             // 🔥 手機版自動縮小並調整視窗位置
             if (isMobile()) {
-                // 手機版自動縮放到 30%，確保能看到全局
-                zoomLevel = 0.3;
+                // 手機版自動縮放到 40%，確保能看到全局但不會太小
+                zoomLevel = 0.4;
                 applyZoom();
                 
-                // 手機版：確保控制列可見，並留出更多空間
-                const controlsHeight = 60; // 控制列高度
-                const centerX = MAP_WIDTH / 2 - window.innerWidth / (2 * zoomLevel);
-                const centerY = MAP_HEIGHT / 2 - (window.innerHeight - controlsHeight) / (2 * zoomLevel);
-                
-                // 稍微向上偏移，確保能看到控制列
-                window.scrollTo(Math.max(0, centerX), Math.max(0, centerY - 100));
-                
-                // 顯示手機專用提示
+                // 等待一下讓數據加載完成，然後定位到熊窩
                 setTimeout(() => {
-                    updateDebugInfo('📱 手機模式：已自動縮放至30%<br/>💡 雙指縮放 | 長按拖拽');
-                }, 1000);
+                    centerViewOnBearDen();
+                    updateDebugInfo('📱 手機模式：已自動縮放至40%<br/>🎯 視窗已定位到熊窩<br/>💡 雙指縮放 | 長按拖拽');
+                }, 500);
             } else {
                 // 桌面版：正常大小
                 zoomLevel = 1.0;
                 applyZoom();
                 
-                const centerX = MAP_WIDTH / 2 - window.innerWidth / 2;
-                const centerY = MAP_HEIGHT / 2 - window.innerHeight / 2;
-                
-                window.scrollTo(centerX, centerY);
+                // 桌面版也定位到熊窩
+                setTimeout(() => {
+                    centerViewOnBearDen();
+                }, 200);
             }
             
             // ✅ 設定 Firebase 監聽器（會自動載入資料）
@@ -1445,6 +1482,9 @@
                         if (newZoomLevel >= 0.1 && newZoomLevel <= 3.0) {
                             zoomLevel = newZoomLevel;
                             applyZoom();
+                            
+                            // 🔥 手機版雙指縮放時也保持熊窩為中心
+                            setTimeout(() => centerViewOnBearDen(), 50);
                             
                             // 更新縮放提示
                             if (zoomHint) {
