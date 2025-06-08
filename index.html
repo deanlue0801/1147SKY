@@ -36,11 +36,27 @@
             font-size: 12px;
         }
         
+        /* 🔥 手機版專用優化 */
         @media (max-width: 768px) {
+            body {
+                /* 防止手機版意外縮放 */
+                -webkit-text-size-adjust: 100%;
+                -ms-text-size-adjust: 100%;
+            }
+            
             .controls {
                 padding: 5px;
                 gap: 3px;
                 font-size: 11px;
+                /* 🔥 確保控制列在最上層且可見 */
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                z-index: 9999;
+                background: rgba(52, 73, 94, 0.98);
+                backdrop-filter: blur(10px);
+                box-shadow: 0 2px 10px rgba(0,0,0,0.3);
             }
             
             .controls input, .controls select {
@@ -62,6 +78,60 @@
             .info {
                 font-size: 10px;
                 margin-left: 5px;
+            }
+            
+            /* 🔥 手機版地圖容器調整 */
+            .map-container {
+                margin-top: 70px; /* 為控制列留出空間 */
+                min-height: calc(100vh - 70px);
+            }
+            
+            /* 🔥 手機版座標顯示優化 */
+            .coords {
+                bottom: 10px;
+                left: 10px;
+                font-size: 11px;
+                background: rgba(44, 62, 80, 0.95);
+                padding: 8px 12px;
+                border-radius: 20px;
+                backdrop-filter: blur(5px);
+                border: 1px solid rgba(127, 140, 141, 0.3);
+            }
+            
+            /* 🔥 手機版除錯顯示優化 */
+            .debug-overlay {
+                top: 70px;
+                font-size: 12px;
+                padding: 8px 16px;
+                max-width: 90vw;
+                word-wrap: break-word;
+            }
+        }
+        
+        /* 🔥 手機版專用：縮放提示 */
+        .mobile-zoom-hint {
+            position: fixed;
+            bottom: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(52, 152, 219, 0.9);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .mobile-zoom-hint.show {
+            opacity: 1;
+        }
+        
+        @media (min-width: 769px) {
+            .mobile-zoom-hint {
+                display: none;
             }
         }
         
@@ -420,7 +490,12 @@
     
     <!-- 🔥 手機觸控提示 -->
     <div class="mobile-tips">
-        💡 長按拖拽項目 | 右鍵改色 | Ctrl+滾輪縮放
+        💡 長按拖拽項目 | 右鍵改色 | 雙指縮放
+    </div>
+    
+    <!-- 🔥 手機版縮放提示 -->
+    <div class="mobile-zoom-hint" id="mobileZoomHint">
+        🔍 雙指縮放操作中...
     </div>
     
     <!-- 🎯 觸控提示彈窗 -->
@@ -1277,20 +1352,125 @@
             }
         });
 
+        // 🔧 偵測是否為手機裝置
+        function isMobile() {
+            return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+        }
+
         // 初始化
         function initialize() {
-            applyZoom();
-            
-            const centerX = MAP_WIDTH / 2 - window.innerWidth / 2;
-            const centerY = MAP_HEIGHT / 2 - window.innerHeight / 2;
-            
-            window.scrollTo(centerX, centerY);
+            // 🔥 手機版自動縮小並調整視窗位置
+            if (isMobile()) {
+                // 手機版自動縮放到 30%，確保能看到全局
+                zoomLevel = 0.3;
+                applyZoom();
+                
+                // 手機版：確保控制列可見，並留出更多空間
+                const controlsHeight = 60; // 控制列高度
+                const centerX = MAP_WIDTH / 2 - window.innerWidth / (2 * zoomLevel);
+                const centerY = MAP_HEIGHT / 2 - (window.innerHeight - controlsHeight) / (2 * zoomLevel);
+                
+                // 稍微向上偏移，確保能看到控制列
+                window.scrollTo(Math.max(0, centerX), Math.max(0, centerY - 100));
+                
+                // 顯示手機專用提示
+                setTimeout(() => {
+                    updateDebugInfo('📱 手機模式：已自動縮放至30%<br/>💡 雙指縮放 | 長按拖拽');
+                }, 1000);
+            } else {
+                // 桌面版：正常大小
+                zoomLevel = 1.0;
+                applyZoom();
+                
+                const centerX = MAP_WIDTH / 2 - window.innerWidth / 2;
+                const centerY = MAP_HEIGHT / 2 - window.innerHeight / 2;
+                
+                window.scrollTo(centerX, centerY);
+            }
             
             // ✅ 設定 Firebase 監聽器（會自動載入資料）
             setupFirebaseListener();
             
             // 設定事件監聽器
             setupEventListeners();
+            
+            // 🔥 手機版專用：添加觸控縮放支援
+            if (isMobile()) {
+                setupMobileZoom();
+            }
+        }
+
+        // 🔥 新增：手機版觸控縮放功能
+        function setupMobileZoom() {
+            let lastTouchDistance = 0;
+            let isZooming = false;
+            
+            const container = document.getElementById('mapContainer');
+            const zoomHint = document.getElementById('mobileZoomHint');
+            
+            container.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    // 雙指觸控開始
+                    isZooming = true;
+                    const touch1 = e.touches[0];
+                    const touch2 = e.touches[1];
+                    lastTouchDistance = Math.sqrt(
+                        Math.pow(touch2.clientX - touch1.clientX, 2) +
+                        Math.pow(touch2.clientY - touch1.clientY, 2)
+                    );
+                    
+                    // 顯示縮放提示
+                    if (zoomHint) {
+                        zoomHint.classList.add('show');
+                    }
+                    
+                    e.preventDefault();
+                }
+            }, { passive: false });
+            
+            container.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2 && isZooming) {
+                    const touch1 = e.touches[0];
+                    const touch2 = e.touches[1];
+                    const currentDistance = Math.sqrt(
+                        Math.pow(touch2.clientX - touch1.clientX, 2) +
+                        Math.pow(touch2.clientY - touch1.clientY, 2)
+                    );
+                    
+                    if (lastTouchDistance > 0) {
+                        const zoomChange = currentDistance / lastTouchDistance;
+                        const newZoomLevel = zoomLevel * zoomChange;
+                        
+                        // 限制縮放範圍
+                        if (newZoomLevel >= 0.1 && newZoomLevel <= 3.0) {
+                            zoomLevel = newZoomLevel;
+                            applyZoom();
+                            
+                            // 更新縮放提示
+                            if (zoomHint) {
+                                zoomHint.textContent = `🔍 縮放: ${Math.round(zoomLevel * 100)}%`;
+                            }
+                        }
+                    }
+                    
+                    lastTouchDistance = currentDistance;
+                    e.preventDefault();
+                }
+            }, { passive: false });
+            
+            container.addEventListener('touchend', (e) => {
+                if (e.touches.length < 2) {
+                    isZooming = false;
+                    lastTouchDistance = 0;
+                    
+                    // 隱藏縮放提示
+                    if (zoomHint) {
+                        setTimeout(() => {
+                            zoomHint.classList.remove('show');
+                        }, 1000);
+                    }
+                }
+            });
         }
 
         initialize();
