@@ -191,8 +191,8 @@
         
         .map-container {
             position: relative;
-            width: 2000px; /* 🔧 和 MAP_WIDTH 保持一致 */
-            height: 1600px; /* 🔧 和 MAP_HEIGHT 保持一致 */
+            width: 2500px; /* 🔧 從5000px改為2500px（縮小一半） */
+            height: 2000px; /* 🔧 從4000px改為2000px（縮小一半） */
             margin: 0;
             background: #34495e;
             border: none;
@@ -540,8 +540,8 @@
 
         // 全域變數
         const GRID_SIZE = 40;
-        const MAP_WIDTH = 2000; // 🔧 底圖寬度（像素）
-        const MAP_HEIGHT = 1600;// 🔧 底圖高度（像素）
+        const MAP_WIDTH = 2500; // 🔧 從5000改為2500（縮小一半）
+        const MAP_HEIGHT = 2000;// 🔧 從4000改為2000（縮小一半）
         const GRID_ORIGIN_X = MAP_WIDTH / 2;
         const GRID_ORIGIN_Y = MAP_HEIGHT / 2;
         
@@ -780,12 +780,13 @@
             }, 1000);
         }
 
-        // 🔥 修復：考慮縮放的座標轉換函數
+        // 🔥 確保拖拽座標計算不受縮放中心影響
         function getContainerCoordinates(clientX, clientY) {
             const container = document.getElementById('mapContainer');
             const rect = container.getBoundingClientRect();
             
-            // 計算相對於容器的座標
+            // 🎯 重要：座標轉換不受 transform-origin 影響
+            // 因為我們處理的是容器內的實際像素位置
             const containerX = (clientX - rect.left) / zoomLevel;
             const containerY = (clientY - rect.top) / zoomLevel;
             
@@ -1158,28 +1159,17 @@
             }
         }
 
-        // 🔥 修復：以當前畫面中心為縮放原點
+        // 🔥 修復：縮放固定左上角，然後定位到熊窩
         function applyZoom() {
             const container = document.getElementById('mapContainer');
-            const rect = container.getBoundingClientRect();
             
-            // 🎯 計算當前畫面的中心點在容器中的位置
-            const viewportCenterX = window.innerWidth / 2;
-            const viewportCenterY = window.innerHeight / 2;
-            
-            // 手機版考慮控制列高度
-            const controlsHeight = isMobile() ? 70 : 0;
-            const adjustedViewportCenterY = (window.innerHeight - controlsHeight) / 2 + controlsHeight;
-            
-            // 將視窗中心點轉換為容器內的座標
-            const containerCenterX = (viewportCenterX - rect.left) / zoomLevel;
-            const containerCenterY = (adjustedViewportCenterY - rect.top) / zoomLevel;
-            
-            // 設定縮放原點為當前畫面中心
-            container.style.transformOrigin = `${containerCenterX}px ${containerCenterY}px`;
+            // 🎯 縮放原點固定為左上角，避免飄移
+            container.style.transformOrigin = `0px 0px`;
             container.style.transform = `scale(${zoomLevel})`;
             
             document.getElementById('zoomLevel').textContent = Math.round(zoomLevel * 100) + '%';
+            
+            console.log(`縮放完成：${Math.round(zoomLevel * 100)}%，原點固定左上角`);
         }
         
         // 🔥 修復：將視窗中心定位到熊窩
@@ -1264,8 +1254,8 @@
             if (zoomLevel < 3.0) {
                 zoomLevel *= 1.2;
                 applyZoom();
-                // 🔥 移除自動定位，避免編輯時干擾
-                // setTimeout(() => centerViewOnBearDen(), 100);
+                // 🔥 縮放後自動定位到熊窩
+                setTimeout(() => centerViewOnBearDen(), 100);
             }
         }
         
@@ -1273,15 +1263,15 @@
             if (zoomLevel > 0.1) {
                 zoomLevel /= 1.2;
                 applyZoom();
-                // 🔥 移除自動定位，避免編輯時干擾
-                // setTimeout(() => centerViewOnBearDen(), 100);
+                // 🔥 縮放後自動定位到熊窩
+                setTimeout(() => centerViewOnBearDen(), 100);
             }
         }
         
         window.resetZoom = function() {
             zoomLevel = 1.0;
             applyZoom();
-            // 🔥 重置縮放時才手動定位到熊窩
+            // 🔥 重置縮放後自動定位到熊窩
             setTimeout(() => centerViewOnBearDen(), 100);
         }
         
