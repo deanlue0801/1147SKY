@@ -470,7 +470,7 @@
         <button onclick="addItem()">新增項目</button>
         <button onclick="exportLayout()">匯出座位表</button>
         <button onclick="clearAll()" style="background: #c0392b;">⚠️ 清空所有</button>
-        <button onclick="centerViewOnBearDen()" style="background: #8e44ad;">🎯 定位熊窩</button>
+        <button onclick="centerViewOnBearDen()" style="background: #8e44ad; font-weight: bold;">🎯 回到熊窩</button>
         <button onclick="zoomIn()" class="debug">放大 (+)</button>
         <button onclick="zoomOut()" class="debug">縮小 (-)</button>
         <button onclick="resetZoom()" class="debug">重置縮放</button>
@@ -696,16 +696,26 @@
                 
                 // 🔥 關鍵修復：數據載入完成後立即定位到熊窩
                 setTimeout(() => {
-                    console.log('嘗試定位到熊窩...');
+                    console.log('嘗試定位到熊窩，當前 people 數量:', people.length);
+                    console.log('人員列表:', people.map(p => `${p.name}(${p.gridX},${p.gridY})`));
+                    
                     centerViewOnBearDen();
                     
-                    // 手機版顯示完成提示
+                    // 🔥 手機版：如果第一次定位失敗，多試幾次
                     if (isMobile()) {
-                        setTimeout(() => {
-                            updateDebugInfo('📱 手機模式已就緒<br/>🎯 已定位到熊窩<br/>💡 雙指縮放 | 長按拖拽');
-                        }, 200);
+                        let retryCount = 0;
+                        const retryInterval = setInterval(() => {
+                            retryCount++;
+                            console.log(`手機版重試定位 第${retryCount}次`);
+                            centerViewOnBearDen();
+                            
+                            if (retryCount >= 3) {
+                                clearInterval(retryInterval);
+                                updateDebugInfo('📱 手機模式已就緒<br/>🎯 定位嘗試完成<br/>💡 雙指縮放 | 長按拖拽<br/>🔧 如果位置不對請點擊紫色按鈕');
+                            }
+                        }, 300);
                     }
-                }, 100);
+                }, 200);
                 
                 isUpdatingFromFirebase = false;
             });
@@ -1158,30 +1168,49 @@
             const bearDen = people.find(p => p.name === '熊窩' || p.type === 'center');
             if (!bearDen) {
                 console.log('找不到熊窩，使用默認中心');
+                // 如果找不到熊窩，至少移動到地圖中心
+                const scrollX = GRID_ORIGIN_X - window.innerWidth / 2;
+                const scrollY = GRID_ORIGIN_Y - window.innerHeight / 2;
+                window.scrollTo(Math.max(0, scrollX), Math.max(0, scrollY));
                 return;
             }
             
             const bearPos = gridToPixel(bearDen.gridX, bearDen.gridY);
+            console.log('熊窩位置:', bearPos);
             
-            // 🔥 修復：考慮縮放後的實際螢幕位置
-            const viewportCenterX = window.innerWidth / 2;
-            const viewportCenterY = window.innerHeight / 2;
-            
-            // 手機版：考慮控制列高度
-            const controlsHeight = isMobile() ? 70 : 0;
-            const adjustedViewportCenterY = (window.innerHeight - controlsHeight) / 2 + controlsHeight;
-            
-            // 🔥 關鍵修復：計算滾動位置時不需要考慮縮放，因為 scrollTo 是基於原始座標
-            const scrollX = bearPos.x - viewportCenterX / zoomLevel;
-            const scrollY = bearPos.y - adjustedViewportCenterY / zoomLevel;
-            
-            console.log(`定位到熊窩: 格線(${bearDen.gridX}, ${bearDen.gridY}) -> 像素(${bearPos.x}, ${bearPos.y}) -> 滾動(${scrollX}, ${scrollY})`);
-            
-            window.scrollTo(Math.max(0, scrollX), Math.max(0, scrollY));
-            
-            // 更新除錯資訊
+            // 🔥 手機版修復：重新計算滾動位置
             if (isMobile()) {
-                updateDebugInfo(`🎯 已定位到熊窩<br/>格線: (${bearDen.gridX}, ${bearDen.gridY})<br/>縮放: ${Math.round(zoomLevel * 100)}%`);
+                // 手機版：簡化計算，直接基於熊窩位置
+                const controlsHeight = 70;
+                const viewportWidth = window.innerWidth;
+                const viewportHeight = window.innerHeight - controlsHeight;
+                
+                // 計算要讓熊窩居中需要的滾動距離
+                const targetScrollX = bearPos.x - (viewportWidth / 2);
+                const targetScrollY = bearPos.y - (viewportHeight / 2) - controlsHeight;
+                
+                console.log(`手機版定位計算:
+                    視窗尺寸: ${viewportWidth} x ${viewportHeight}
+                    熊窩像素位置: ${bearPos.x}, ${bearPos.y}
+                    目標滾動位置: ${targetScrollX}, ${targetScrollY}`);
+                
+                window.scrollTo(Math.max(0, targetScrollX), Math.max(0, targetScrollY));
+                
+                // 更新除錯資訊
+                setTimeout(() => {
+                    updateDebugInfo(`📱 手機版定位完成<br/>🎯 熊窩格線: (${bearDen.gridX}, ${bearDen.gridY})<br/>📍 滾動到: (${Math.round(targetScrollX)}, ${Math.round(targetScrollY)})<br/>🔍 縮放: ${Math.round(zoomLevel * 100)}%`);
+                }, 100);
+            } else {
+                // 桌面版：原來的邏輯
+                const viewportCenterX = window.innerWidth / 2;
+                const viewportCenterY = window.innerHeight / 2;
+                
+                const scrollX = bearPos.x - viewportCenterX / zoomLevel;
+                const scrollY = bearPos.y - viewportCenterY / zoomLevel;
+                
+                console.log(`桌面版定位到熊窩: 格線(${bearDen.gridX}, ${bearDen.gridY}) -> 像素(${bearPos.x}, ${bearPos.y}) -> 滾動(${scrollX}, ${scrollY})`);
+                
+                window.scrollTo(Math.max(0, scrollX), Math.max(0, scrollY));
             }
         }
         
