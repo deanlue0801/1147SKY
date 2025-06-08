@@ -1134,27 +1134,25 @@
             }
         }
 
-        // 🔥 修復：以熊窩為中心的縮放功能
+        // 🔥 修復：以當前畫面中心為縮放原點
         function applyZoom() {
             const container = document.getElementById('mapContainer');
+            const rect = container.getBoundingClientRect();
             
-            // 🎯 找到熊窩的位置作為縮放中心
-            const bearDen = people.find(p => p.name === '熊窩' || p.type === 'center');
-            let centerX, centerY;
+            // 🎯 計算當前畫面的中心點在容器中的位置
+            const viewportCenterX = window.innerWidth / 2;
+            const viewportCenterY = window.innerHeight / 2;
             
-            if (bearDen) {
-                // 以熊窩為縮放中心
-                const bearPos = gridToPixel(bearDen.gridX, bearDen.gridY);
-                centerX = bearPos.x;
-                centerY = bearPos.y;
-            } else {
-                // 如果沒有熊窩，使用地圖中心
-                centerX = GRID_ORIGIN_X;
-                centerY = GRID_ORIGIN_Y;
-            }
+            // 手機版考慮控制列高度
+            const controlsHeight = isMobile() ? 70 : 0;
+            const adjustedViewportCenterY = (window.innerHeight - controlsHeight) / 2 + controlsHeight;
             
-            // 設定縮放原點為熊窩位置
-            container.style.transformOrigin = `${centerX}px ${centerY}px`;
+            // 將視窗中心點轉換為容器內的座標
+            const containerCenterX = (viewportCenterX - rect.left) / zoomLevel;
+            const containerCenterY = (adjustedViewportCenterY - rect.top) / zoomLevel;
+            
+            // 設定縮放原點為當前畫面中心
+            container.style.transformOrigin = `${containerCenterX}px ${containerCenterY}px`;
             container.style.transform = `scale(${zoomLevel})`;
             
             document.getElementById('zoomLevel').textContent = Math.round(zoomLevel * 100) + '%';
