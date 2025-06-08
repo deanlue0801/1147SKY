@@ -80,10 +80,11 @@
                 margin-left: 5px;
             }
             
-            /* 🔥 手機版地圖容器調整 */
+            /* 🔥 手機版地圖容器調整 - 移除上邊距 */
             .map-container {
-                margin-top: 70px; /* 為控制列留出空間 */
-                min-height: calc(100vh - 70px);
+                margin-top: 0; /* 🔧 手機版不要上邊距，讓地圖直接從工具列下方開始 */
+                padding-top: 60px; /* 改用padding，確保內容不被工具列遮住 */
+                min-height: calc(100vh - 0px);
             }
             
             /* 🔥 手機版座標顯示優化 */
