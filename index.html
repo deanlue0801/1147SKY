@@ -696,12 +696,21 @@
                 
                 renderPeople();
                 
-                // 🔥 修復：只在初次載入時定位，避免編輯時重複定位
+                // 🔥 修復：正確的執行順序 - 只在初次載入時執行
                 if (!hasInitialCentered && hasLoadedFromFirebase) {
+                    // ✅ 步驟1：先設定縮放比例
+                    if (isMobile()) {
+                        console.log('手機模式：設定40%縮放');
+                        zoomLevel = 0.4;
+                    } else {
+                        console.log('桌面模式：設定100%縮放');
+                        zoomLevel = 1.0;
+                    }
+                    applyZoom();
+                    
+                    // ✅ 步驟2：然後定位到熊窩
                     setTimeout(() => {
-                        console.log('首次載入，嘗試定位到熊窩...');
-                        console.log('人員列表:', people.map(p => `${p.name}(${p.gridX},${p.gridY})`));
-                        
+                        console.log('縮放完成，現在定位到熊窩...');
                         centerViewOnBearDen();
                         hasInitialCentered = true; // 🔥 標記已完成初始定位
                         
@@ -1453,25 +1462,11 @@
         function initialize() {
             console.log('開始初始化...');
             
-            // 🔥 手機版自動縮小並調整視窗位置
-            if (isMobile()) {
-                console.log('手機模式初始化');
-                // 手機版自動縮放到 40%
-                zoomLevel = 0.4;
-                applyZoom();
-                console.log('手機版縮放設定完成:', zoomLevel);
-            } else {
-                console.log('桌面模式初始化');
-                // 桌面版：正常大小
-                zoomLevel = 1.0;
-                applyZoom();
-            }
+            // ✅ 先設定事件監聽器
+            setupEventListeners();
             
             // ✅ 設定 Firebase 監聽器（會自動載入資料）
             setupFirebaseListener();
-            
-            // 設定事件監聽器
-            setupEventListeners();
             
             // 🔥 手機版專用：添加觸控縮放支援
             if (isMobile()) {
